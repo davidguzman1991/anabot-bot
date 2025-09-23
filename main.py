@@ -763,3 +763,50 @@ def chat(inp: ChatIn) -> ChatOut:
     reply = ana_reply(inp.text, session, inp.session_id)
     session["history"].append({"role": "assistant", "content": reply})
     return ChatOut(reply=reply)
+# --- WhatsApp Cloud API: VERIFICACIÓN Y RECEPCIÓN WEBHOOK ---
+
+from fastapi import Request, HTTPException
+import os
+
+# Debe existir en Railway como variable: ANA_VERIFY=ANA_CHATBOT  (o el valor que uses)
+VERIFY_TOKEN = os.getenv("ANA_VERIFY", "ANA_CHATBOT")
+
+def _verify_params(params: dict):
+    """
+    Meta llama con ?hub.mode=&hub.verify_token=&hub.challenge=
+    Debemos devolver hub.challenge si el verify_token coincide.
+    """
+    mode = params.get("hub.mode")
+    token = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge")
+
+    if mode == "subscribe" and token == VERIFY_TOKEN and challenge is not None:
+        # Meta acepta texto plano o número. Si es numérico, devuelve int.
+        return int(challenge) if str(challenge).isdigit() else challenge
+    # Si no coincide, 403 (Meta lo interpreta como verificación fallida)
+    raise HTTPException(status_code=403, detail="Verification failed")
+
+# Ruta corta que estás usando en Meta: /webhook
+@app.get("/webhook")
+async def whatsapp_webhook_verify(request: Request):
+    params = dict(request.query_params)
+    return _verify_params(params)
+
+# Por si en algún momento usas el prefijo /whatsapp/webhook
+@app.get("/whatsapp/webhook")
+async def whatsapp_webhook_verify_alt(request: Request):
+    params = dict(request.query_params)
+    return _verify_params(params)
+
+# Recepción de mensajes entrantes (Meta hace POST aquí)
+@app.post("/webhook")
+async def whatsapp_webhook_receive(request: Request):
+    data = await request.json()
+    # TODO: aquí procesas el mensaje (si quieres responder automático)
+    # Para no fallar verificación de Meta, siempre responde 200 OK.
+    return {"status": "ok"}
+
+@app.post("/whatsapp/webhook")
+async def whatsapp_webhook_receive_alt(request: Request):
+    data = await request.json()
+    return {"status": "ok"}
