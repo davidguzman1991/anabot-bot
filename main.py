@@ -1,41 +1,30 @@
-
-# main.py — ANA (v5.1)
+# main.py — ANA (v5.1 + Telegram webhook & WA auto-reply)
 # -------------------------------------------------------------
-# ✅ (1) Evita choques: verifica disponibilidad con Google Calendar (freeBusy)
-#     y sugiere alternativas dentro del horario de atención.
-# ✅ (2) Horario por sede (Guayaquil/Milagro) + feriados (configurables).
-# ✅ (3) Reagendar / Cancelar: mover o anular la cita existente (Calendar).
-# ✅ (4) Recordatorios: Telegram (predeterminado, gratis) y WhatsApp (si hay número).
-# ✅ (5) FAQs estratégicas (presentación, medicina basada en evidencia, NO terapias
-#        alternativas/naturales, y aclaración de atención privada / no IESS) + CTA.
+# ✅ Google Calendar free/busy + creación/reagendo/cancelación
+# ✅ Horarios por sede + feriados
+# ✅ Recordatorios (Telegram y WhatsApp si hay número; requiere APScheduler)
+# ✅ FAQs estratégicas y triage de emergencia
+# ✅ Consola de operador por Telegram: /who, /hist, /tpl, /r
+# ✅ Webhook de WhatsApp (verificación + recepción) con respuesta automática
 #
-# Requisitos básicos:
+# Requisitos:
 #   pip install fastapi uvicorn dateparser python-dotenv requests
 #   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
 #   (opcional p/ recordatorios) pip install apscheduler
 #
-# Variables de entorno necesarias (Railway):
-#   TELEGRAM_BOT_TOKEN=...
-#   TELEGRAM_CHAT_ID=...
-#   GOOGLE_CALENDAR_ID=primary
-#   APPT_DURATION_MIN=45
-#   # Para WhatsApp Cloud API (opcional):
-#   WHATSAPP_TOKEN=...
-#   WHATSAPP_PHONE_ID=...
-#   # Para credenciales de Google (opción práctica en Railway):
-#   GOOGLE_TOKEN_JSON={...contenido completo de token.json...}
-#
-# Ejecutar local:
-#   .\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+# Variables en Railway:
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ALLOWED_TELEGRAM_USER_IDS (opcional, coma-sep)
+#   GOOGLE_CALENDAR_ID=primary, APPT_DURATION_MIN=45, GOOGLE_TOKEN_JSON={...}
+#   WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, ANA_VERIFY=ANA_CHATBOT
 # -------------------------------------------------------------
 
 from __future__ import annotations
-import os, re
-from typing import Dict, List, Optional
+import os, re, json
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dateparser import parse as dp_parse
@@ -73,9 +62,11 @@ GOOGLE_CALENDAR_ID = os.getenv("GOOGLE_CALENDAR_ID", "primary")
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
+ALLOWED_TELEGRAM_USER_IDS = set([s.strip() for s in os.getenv("ALLOWED_TELEGRAM_USER_IDS", "").split(",") if s.strip()])
 
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
 WHATSAPP_PHONE_ID = os.getenv("WHATSAPP_PHONE_ID", "")
+VERIFY_TOKEN = os.getenv("ANA_VERIFY", "ANA_CHATBOT")
 
 # Horarios por sede (0=Lunes ... 6=Domingo).
 WORKING_HOURS = {
@@ -127,7 +118,7 @@ class Appointment(BaseModel):
     reminder_ids: Optional[List[str]] = None
 
 # ------------ App ------------
-app = FastAPI(title="ANA — Asistente Médico", version="5.1.0")
+app = FastAPI(title="ANA — Asistente Médico", version="5.1.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -138,6 +129,7 @@ app.add_middleware(
 
 SESSIONS: Dict[str, Dict] = {}
 APPOINTMENTS: List[Appointment] = []
+TG_MESSAGE_TO_WA: Dict[int, str] = {}   # map message_id de Telegram -> número WA
 
 # Scheduler global (si está disponible)
 SCHED = BackgroundScheduler(timezone=str(TZ)) if SCHED_AVAILABLE else None
@@ -198,13 +190,27 @@ def next_open_slot(dt: datetime, where: str, step_min: int = 15, max_days_ahead:
     return None
 
 # ------------ Integraciones externas ------------
+def tg_send(chat_id: str, text: str, reply_to_message_id: Optional[int] = None) -> Optional[dict]:
+    if not TELEGRAM_BOT_TOKEN:
+        return None
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+        if reply_to_message_id:
+            payload["reply_to_message_id"] = reply_to_message_id
+            payload["allow_sending_without_reply"] = True
+        r = requests.post(url, json=payload, timeout=10)
+        return r.json() if r.ok else None
+    except Exception:
+        return None
+
 def notify_telegram(text: str) -> bool:
     """Envía un mensaje por Telegram al TELEGRAM_CHAT_ID configurado."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return False
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "disable_web_page_preview": True}
         r = requests.post(url, json=payload, timeout=10)
         return r.ok
     except Exception:
@@ -384,23 +390,21 @@ def faq_flow(user_text: str) -> Optional[str]:
     # Presentación/qué medicina usan
     if "medicina" in t and ("natural" not in t and "alternativ" not in t):
         return (f"Soy Ana, asistente virtual del Dr. Guzmán. {DOC_SUMMARY} "
-                "En nuestra Unidad utilizamos <b>medicina tradicional basada en evidencia científica</b>, "
-                "siguiendo protocolos médicos actualizados. "
-                "¿Desea que le ayude a agendar una cita?")
+                "En nuestra Unidad utilizamos medicina tradicional basada en evidencia científica, "
+                "siguiendo protocolos médicos actualizados. ¿Desea que le ayude a agendar una cita?")
     # Medicina natural / terapias alternativas
     if "natural" in t or "alternativ" in t:
         return ("Soy Ana, asistente del Dr. Guzmán. "
-                "Nuestros tratamientos <b>no se basan</b> en medicina natural ni terapias alternativas. "
-                "Trabajamos exclusivamente con <b>medicina tradicional respaldada por evidencia científica</b>. "
+                "Nuestros tratamientos no se basan en medicina natural ni terapias alternativas. "
+                "Trabajamos exclusivamente con medicina respaldada por evidencia científica. "
                 "Si lo desea, puedo ayudarle a coordinar una cita.")
     # IESS / seguro social
     if "iess" in t or "seguro" in t or "seguro social" in t:
-        return (f"Soy Ana, asistente del Dr. Guzmán. Nuestros servicios médicos son <b>netamente privados</b>. "
-                f"{DOC_SUMMARY} ¿Quiere que le ayude a reservar su consulta?")
+        return ("Nuestros servicios médicos son netamente privados. "
+                "¿Quiere que le ayude a reservar su consulta?")
     # Quién es el Dr. Guzmán
     if "quien es el dr" in t or "quién es el dr" in t or "dr guzman" in t or "dr. guzman" in t:
-        return (f"Soy Ana, asistente del Dr. Guzmán. {DOC_SUMMARY} "
-                "Atendemos en Guayaquil y Milagro. ¿Le ayudo a agendar?")
+        return (f"{DOC_SUMMARY} Atendemos en Guayaquil y Milagro. ¿Le ayudo a agendar?")
     return None
 
 # ------------ Intenciones ------------
@@ -442,7 +446,7 @@ def schedule_contact_wizard(user_text: str, state: Dict, session_id: str) -> Opt
         parts = name.split()
         apellido = parts[-1] if len(parts) >= 2 else name
         state["awaiting"] = "honorific"
-        return (f"Gracias. ¿Prefiere que me dirija como <b>Señor</b> o <b>Señora</b> {apellido}? "
+        return (f"Gracias. ¿Prefiere que me dirija como Señor o Señora {apellido}? "
                 "(responda: señor / señora / señorita)")
 
     if awaiting == "honorific":
@@ -490,7 +494,7 @@ def schedule_contact_wizard(user_text: str, state: Dict, session_id: str) -> Opt
         state["awaiting"] = "honorific"
         parts = contact["name"].split()
         apellido = parts[-1] if len(parts) >= 2 else contact["name"]
-        return (f"¿Prefiere que me dirija como <b>Señor</b> o <b>Señora</b> {apellido}? "
+        return (f"¿Prefiere que me dirija como Señor o Señora {apellido}? "
                 "(responda: señor / señora / señorita)")
     if not contact.get("phone"):
         state["awaiting"] = "phone"
@@ -763,14 +767,8 @@ def chat(inp: ChatIn) -> ChatOut:
     reply = ana_reply(inp.text, session, inp.session_id)
     session["history"].append({"role": "assistant", "content": reply})
     return ChatOut(reply=reply)
+
 # --- WhatsApp Cloud API: VERIFICACIÓN Y RECEPCIÓN WEBHOOK ---
-
-from fastapi import Request, HTTPException
-import os
-
-# Debe existir en Railway como variable: ANA_VERIFY=ANA_CHATBOT  (o el valor que uses)
-VERIFY_TOKEN = os.getenv("ANA_VERIFY", "ANA_CHATBOT")
-
 def _verify_params(params: dict):
     """
     Meta llama con ?hub.mode=&hub.verify_token=&hub.challenge=
@@ -786,27 +784,175 @@ def _verify_params(params: dict):
     # Si no coincide, 403 (Meta lo interpreta como verificación fallida)
     raise HTTPException(status_code=403, detail="Verification failed")
 
-# Ruta corta que estás usando en Meta: /webhook
+# Ruta corta que usas en Meta: /webhook
 @app.get("/webhook")
 async def whatsapp_webhook_verify(request: Request):
     params = dict(request.query_params)
     return _verify_params(params)
 
-# Por si en algún momento usas el prefijo /whatsapp/webhook
+# Alternativa /whatsapp/webhook
 @app.get("/whatsapp/webhook")
 async def whatsapp_webhook_verify_alt(request: Request):
     params = dict(request.query_params)
     return _verify_params(params)
 
-# Recepción de mensajes entrantes (Meta hace POST aquí)
+def _wa_extract_message(payload: dict):
+    """Extrae (from_number, text, msg_id) del payload de WhatsApp Cloud API."""
+    try:
+        entry = payload["entry"][0]
+        change = entry["changes"][0]["value"]
+        msgs = change.get("messages", [])
+        if not msgs:
+            return None, None, None
+        msg = msgs[0]
+        wa_from = msg.get("from")
+        text = msg.get("text", {}).get("body") or msg.get("button", {}).get("text") or ""
+        return wa_from, text, msg.get("id")
+    except Exception:
+        return None, None, None
+
 @app.post("/webhook")
 async def whatsapp_webhook_receive(request: Request):
     data = await request.json()
-    # TODO: aquí procesas el mensaje (si quieres responder automático)
-    # Para no fallar verificación de Meta, siempre responde 200 OK.
+    wa_from, text, wa_msg_id = _wa_extract_message(data)
+    if not wa_from or not text:
+        return {"status": "ok"}  # Ignorar eventos no-mensaje
+
+    # Sesión y respuesta automática con ANA
+    sess = SESSIONS.setdefault(wa_from, {"history": [], "state": {}})
+    sess["history"].append({"role":"user","content":text,"ts":datetime.now(TZ).isoformat()})
+    reply = ana_reply(text, sess, wa_from)
+    sess["history"].append({"role":"assistant","content":reply,"ts":datetime.now(TZ).isoformat()})
+    notify_whatsapp(wa_from, reply)
+
+    # Aviso al operador por Telegram y enlazar message_id -> número para /r por respuesta
+    if TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN:
+        res = tg_send(TELEGRAM_CHAT_ID, f"💬 WhatsApp de {wa_from}:\n{text}\n\n🗣️ ANA respondió:\n{reply}")
+        try:
+            if res and "result" in res:
+                mid = res["result"]["message_id"]
+                TG_MESSAGE_TO_WA[mid] = wa_from
+        except Exception:
+            pass
+
     return {"status": "ok"}
 
 @app.post("/whatsapp/webhook")
 async def whatsapp_webhook_receive_alt(request: Request):
-    data = await request.json()
-    return {"status": "ok"}
+    # Alias al mismo manejador
+    return await whatsapp_webhook_receive(request)
+
+# --- Telegram webhook: consola de operador (/who, /hist, /tpl, /r) ---
+@app.post("/telegram")
+async def telegram_webhook(request: Request):
+    update = await request.json()
+    message = update.get("message") or update.get("edited_message")
+    if not message:
+        return {"ok": True}
+
+    chat_id = str(message["chat"]["id"])
+    user_id = str(message["from"]["id"])
+    text = (message.get("text") or "").strip()
+    msg_id = message.get("message_id")
+
+    # Autorización opcional
+    if ALLOWED_TELEGRAM_USER_IDS and user_id not in ALLOWED_TELEGRAM_USER_IDS:
+        tg_send(chat_id, "No autorizado.", reply_to_message_id=msg_id)
+        return {"ok": True}
+
+    if text.startswith("/who"):
+        # Sesiones activas recent (24h)
+        cutoff = datetime.now(TZ) - timedelta(hours=24)
+        lines = ["Sesiones activas (≤24h):"]
+        found = False
+        for wa, s in SESSIONS.items():
+            # intentar leer timestamp último
+            last_ts = None
+            try:
+                for h in reversed(s.get("history", [])):
+                    if h.get("ts"):
+                        last_ts = datetime.fromisoformat(h["ts"])
+                        break
+            except Exception:
+                pass
+            if not last_ts or last_ts < cutoff:
+                continue
+            lines.append(f"• {wa} (último: {last_ts})")
+            found = True
+        if not found:
+            tg_send(chat_id, "No hay sesiones activas en las últimas 24 h.", reply_to_message_id=msg_id)
+        else:
+            tg_send(chat_id, "\n".join(lines), reply_to_message_id=msg_id)
+        return {"ok": True}
+
+    if text.startswith("/hist"):
+        parts = text.split()
+        if len(parts) < 2:
+            tg_send(chat_id, "Uso: /hist <numero> [n_items]", reply_to_message_id=msg_id)
+            return {"ok": True}
+        wa_num = parts[1]
+        n = 20
+        if len(parts) >= 3 and parts[2].isdigit():
+            n = int(parts[2])
+        sess = SESSIONS.get(wa_num)
+        if not sess:
+            tg_send(chat_id, f"No hay historial para {wa_num}.", reply_to_message_id=msg_id)
+            return {"ok": True}
+        hist = sess.get("history", [])[-n:]
+        out_lines = [f"Historial {wa_num} (últimos {len(hist)}):"]
+        for h in hist:
+            role = h.get("role")
+            content = h.get("content")
+            ts = h.get("ts")
+            out_lines.append(f"[{ts}] {role}: {content}")
+        tg_send(chat_id, "\n".join(out_lines), reply_to_message_id=msg_id)
+        return {"ok": True}
+
+    if text.startswith("/tpl"):
+        parts = text.split(maxsplit=3)
+        if len(parts) < 3:
+            tg_send(chat_id, "Uso: /tpl <numero> <TEMPLATE_NAME> [param1|param2|...]", reply_to_message_id=msg_id)
+            return {"ok": True}
+        wa_num = parts[1]
+        tpl_name = parts[2]
+        # Este main.py base no implementa plantillas; se envía texto simple indicando plantilla.
+        params = parts[3] if len(parts) == 4 else ""
+        ok = notify_whatsapp(wa_num, f"[TEMPLATE:{tpl_name}] {params}")
+        tg_send(chat_id, f"{'✅' if ok else '❌'} Template '{tpl_name}' enviado a {wa_num}.", reply_to_message_id=msg_id)
+        return {"ok": True}
+
+    if text.startswith("/r"):
+        parts = text.split(maxsplit=2)
+        wa_num = None
+        msg_to_send = None
+
+        if len(parts) >= 3 and parts[1].isdigit():
+            wa_num = parts[1]
+            msg_to_send = parts[2]
+        else:
+            reply_to = message.get("reply_to_message", {})
+            if reply_to:
+                ref_mid = reply_to.get("message_id")
+                wa_num = TG_MESSAGE_TO_WA.get(ref_mid)
+                msg_to_send = text[2:].strip()
+        if not wa_num or not msg_to_send:
+            tg_send(chat_id, "Uso: /r <numero> <mensaje>  (o responde a un aviso del bot con /r <mensaje>)", reply_to_message_id=msg_id)
+            return {"ok": True}
+
+        ok = notify_whatsapp(wa_num, msg_to_send)
+        tg_send(chat_id, f"{'✅' if ok else '❌'} Enviado a {wa_num}: {msg_to_send}", reply_to_message_id=msg_id)
+
+        sess = SESSIONS.setdefault(wa_num, {"history": [], "state": {}})
+        sess["history"].append({"role": "operator", "content": msg_to_send, "ts": datetime.now(TZ).isoformat()})
+        return {"ok": True}
+
+    help_text = (
+        "Comandos:\n"
+        "• /who — lista sesiones activas (24h)\n"
+        "• /hist <numero> [n] — historial de la sesión\n"
+        "• /tpl <numero> <NOMBRE> [p1|p2|...] — simula plantilla\n"
+        "• /r <numero> <mensaje> — responde por WhatsApp\n"
+        "• (o responde a un aviso del bot con: /r <mensaje>)"
+    )
+    tg_send(chat_id, help_text, reply_to_message_id=msg_id)
+    return {"ok": True}
