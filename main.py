@@ -1,19 +1,19 @@
-# main.py — ANA (v5.1)
+# main.py — ANA (v5.2) — cambios 2025-09-23
 # -------------------------------------------------------------
-# ✅ (1) Evita choques: verifica disponibilidad con Google Calendar (freeBusy)
-#     y sugiere alternativas dentro del horario de atención.
-# ✅ (2) Horario por sede (Guayaquil/Milagro) + feriados (configurables).
-# ✅ (3) Reagendar / Cancelar: mover o anular la cita existente (Calendar).
-# ✅ (4) Recordatorios: Telegram (predeterminado, gratis) y WhatsApp (si hay número).
-# ✅ (5) FAQs estratégicas (presentación, medicina basada en evidencia, NO terapias
-#        alternativas/naturales, y aclaración de atención privada / no IESS) + CTA.
+# ✅ Evita choques: verifica disponibilidad con Google Calendar (freeBusy)
+# ✅ Horario por sede (Guayaquil/Milagro) + feriados
+# ✅ Reagendar / Cancelar
+# ✅ Recordatorios: Telegram (predeterminado) y WhatsApp (si hay número)
+# ✅ FAQs estratégicas + CTA
+# ✅ CAMBIO: webhooks llaman directo a ana_reply (sin puente HTTP) para
+#    evitar el fallback “Gracias, lo reviso y le confirmo.”
 #
 # Requisitos básicos:
 #   pip install fastapi uvicorn dateparser python-dotenv requests
-#   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
-#   (opcional p/ recordatorios) pip install apscheduler
+#   (Calendar) pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+#   (opcional) pip install apscheduler
 #
-# Variables de entorno necesarias (Railway):
+# Variables de entorno (Railway):
 #   TELEGRAM_BOT_TOKEN=...
 #   TELEGRAM_CHAT_ID=...
 #   GOOGLE_CALENDAR_ID=primary
@@ -22,11 +22,9 @@
 #   WHATSAPP_TOKEN=...
 #   WHATSAPP_PHONE_ID=...
 #   PORT=8080
-#   # Para credenciales de Google (opción práctica en Railway):
-#   GOOGLE_TOKEN_JSON={...contenido completo de token.json...}
-#
-# Ejecutar local:
-#   .\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+#   GOOGLE_TOKEN_JSON={... token.json ...}
+#   # opcional si quieres seguir usando el puente:
+#   INTERNAL_CHAT_URL=http://127.0.0.1:${PORT}/chat
 # -------------------------------------------------------------
 
 from __future__ import annotations
@@ -72,16 +70,11 @@ def wa_send_text(to: str, body: str):
         "text": {"body": (body or "")[:4096]}
     }
     r = requests.post(url, headers=headers, json=data, timeout=20)
-    # Si algo falla, lanza excepción para que lo veas en logs
     r.raise_for_status()
     return r.json()
 
 def chat_reply_via_http(session_id: str, text: str) -> str:
-    """Llama a /chat por HTTP dentro del mismo servicio y devuelve el 'reply'.
-    Usa INTERNAL_CHAT_URL si está definida; si no, asume http://127.0.0.1:{PORT}/chat.
-    Local: PORT defaults to 8000. En Railway: PORT lo inyecta la plataforma.
-    """
-    import os, requests
+    """(Opcional) Llama a /chat por HTTP dentro del mismo servicio y devuelve el 'reply'."""
     chat_url = os.getenv("INTERNAL_CHAT_URL")
     if not chat_url:
         port = os.getenv("PORT", "8000")
@@ -95,8 +88,9 @@ def chat_reply_via_http(session_id: str, text: str) -> str:
         resp.raise_for_status()
         data = resp.json()
         return data.get("reply", "Gracias, lo reviso y le confirmo.")
-    except Exception:
-        return "Gracias, lo reviso y le confirmo."
+    except Exception as e:
+        # CAMBIO: mostrar error real para depurar si se usa este camino
+        return f"Error interno al enrutar chat: {e}"
 
 # Google Calendar
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
@@ -121,7 +115,7 @@ GOOGLE_CALENDAR_ID = os.getenv("GOOGLE_CALENDAR_ID", "primary")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-# Horarios por sede (0=Lunes ... 6=Domingo). Actualizado según memorias.
+# Horarios por sede (0=Lunes ... 6=Domingo).
 WORKING_HOURS = {
     "Guayaquil": {
         0: [("08:00","12:00"), ("16:00","19:30")],
@@ -129,25 +123,22 @@ WORKING_HOURS = {
         2: [("08:00","12:00"), ("16:00","19:30")],
         3: [("08:00","12:00"), ("16:00","19:30")],
         4: [("08:00","12:00"), ("16:00","19:30")],
-        5: [("09:00","16:00")],                     # sábado
-        6: []                                        # domingo solo emergencias, pero no agendable
+        5: [("09:00","16:00")],
+        6: []
     },
     "Milagro": {
-        0: [("10:00","16:00")],  # lunes
-        2: [("10:00","16:00")],  # miércoles
-        4: [("10:00","16:00")],  # viernes
+        0: [("10:00","16:00")],
+        2: [("10:00","16:00")],
+        4: [("10:00","16:00")],
     }
 }
 
-HOLIDAYS = set([
-    # "2025-12-25", "2026-01-01"
-])
+HOLIDAYS = set([])
 
 CLINIC_GYE = "Hospital de Especialidades de la ciudad, Torre Sur, consultorio 204 (antigua Clínica Kennedy Alborada). GPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7"
 CLINIC_MILAGRO = "Clínica Santa Elena (Av. Cristóbal Colón y Gral. P. J. Montero), Milagro. GPS: https://maps.app.goo.gl/sE2ehFSeDVWAQj867"
 ATT_NOTE = "Atención previa cita."
 
-# Branding / presentación breve
 DOC_SUMMARY = ("El Dr. Guzmán es médico especialista en diabetes y sus complicaciones, "
                "con amplia experiencia y un enfoque en mejorar la calidad de vida de sus pacientes.")
 
@@ -171,7 +162,7 @@ class Appointment(BaseModel):
     reminder_ids: Optional[List[str]] = None
 
 # ------------ App ------------
-app = FastAPI(title="ANA — Asistente Médico", version="5.1.0")
+app = FastAPI(title="ANA — Asistente Médico", version="5.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -233,7 +224,6 @@ def within_working_hours(dt: datetime, where: str) -> bool:
     return False
 
 def next_open_slot(dt: datetime, where: str, step_min: int = 15, max_days_ahead: int = 30) -> Optional[datetime]:
-    """Encuentra el próximo inicio disponible dentro de horarios (sin consultar Calendar)."""
     curr = dt.astimezone(TZ).replace(second=0, microsecond=0)
     for _ in range(int((max_days_ahead*24*60)/step_min)):
         if within_working_hours(curr, where):
@@ -243,7 +233,6 @@ def next_open_slot(dt: datetime, where: str, step_min: int = 15, max_days_ahead:
 
 # ------------ Integraciones externas ------------
 def notify_telegram(text: str) -> bool:
-    """Envía un mensaje por Telegram al TELEGRAM_CHAT_ID configurado."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return False
     try:
@@ -255,7 +244,6 @@ def notify_telegram(text: str) -> bool:
         return False
 
 def notify_whatsapp(phone: str, message: str) -> bool:
-    """Envía mensaje de WhatsApp usando Cloud API (si hay credenciales). phone con código país: 5939XXXXXXX"""
     if not WHATSAPP_TOKEN or not WHATSAPP_PHONE_ID or not phone:
         return False
     try:
@@ -264,13 +252,11 @@ def notify_whatsapp(phone: str, message: str) -> bool:
         return False
 
 def get_calendar_service():
-    # 1) Tu módulo propio (si lo tienes)
     try:
         from auth_google import get_calendar_service as _get
         return _get()
     except Exception:
         pass
-    # 2) token.json local
     try:
         from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
@@ -282,7 +268,6 @@ def get_calendar_service():
         return None
 
 def is_slot_free(start_dt: datetime, duration_min: int, calendar_id: str = None) -> Optional[bool]:
-    """Consulta FreeBusy. Devuelve True/False si hay servicio; None si no se puede verificar."""
     svc = get_calendar_service()
     if svc is None:
         return None
@@ -298,7 +283,6 @@ def is_slot_free(start_dt: datetime, duration_min: int, calendar_id: str = None)
         return None
 
 def suggest_alternatives(start_dt: datetime, where: str, n: int = 3) -> List[datetime]:
-    """Propone hasta n alternativas libres cercanas (requiere horario; usa freeBusy si hay)."""
     suggestions = []
     candidate = next_open_slot(start_dt, where) or start_dt
     visited = 0
@@ -403,7 +387,6 @@ RED_FLAGS = [
     "desmayo", "hemorragia", "sangrado abundante", "fiebre alta", "sepsis",
     "herida abierta profunda", "debilidad súbita", "cara caída", "habla arrastrada",
     "signos de acv", "acv", "ictus",
-    # Ampliado para síntomas de diabetes
     "sed excesiva", "hambre constante", "fatiga extrema", "visión borrosa", "heridas lentas", "infecciones frecuentes",
     "hormigueo", "quemazón", "calambres", "frialdad en pies", "neuropatía", "poliuria", "polidipsia", "polifagia",
     "calentura", "fiebre", "dolor en pies", "úlceras", "dolor crónico"
@@ -423,47 +406,38 @@ def red_flag_guard(text: str) -> Optional[str]:
 # ------------ FAQs estratégicas ------------
 def faq_flow(user_text: str) -> Optional[str]:
     t = user_text.lower()
-    # Presentación/qué medicina usan
     if "medicina" in t and ("natural" not in t and "alternativ" not in t):
         return (f"Soy Ana, asistente virtual del Dr. Guzmán. {DOC_SUMMARY} "
                 "En nuestra Unidad utilizamos <b>medicina tradicional basada en evidencia científica</b>, "
                 "siguiendo protocolos médicos actualizados. "
                 "¿Desea que le ayude a agendar una cita?")
-    # Medicina natural / terapias alternativas
     if "natural" in t or "alternativ" in t:
         return ("Soy Ana, asistente del Dr. Guzmán. "
                 "Nuestros tratamientos <b>no se basan</b> en medicina natural ni terapias alternativas. "
                 "Trabajamos exclusivamente con <b>medicina tradicional respaldada por evidencia científica</b>. "
                 "Si lo desea, puedo ayudarle a coordinar una cita.")
-    # IESS / seguro social
     if "iess" in t or "seguro" in t or "seguro social" in t:
         return (f"Soy Ana, asistente del Dr. Guzmán. Nuestros servicios médicos son <b>netamente privados</b>. "
                 f"{DOC_SUMMARY} ¿Quiere que le ayude a reservar su consulta?")
-    # Quién es el Dr. Guzmán
     if "quien es el dr" in t or "quién es el dr" in t or "dr guzman" in t or "dr. guzman" in t:
         return (f"Soy Ana, asistente del Dr. Guzmán. {DOC_SUMMARY} "
                 "Atendemos en Guayaquil y Milagro. ¿Le ayudo a agendar?")
-    # Precio/costo
     if "precio" in t or "costo" in t or "cuanto cuesta" in t or "cuanto vale" in t:
         return ("La consulta cuesta $45 y dura aproximadamente 60 minutos para despejar dudas, conocer al paciente y ayudarle objetivamente. "
                 "Incluye: valoración nutricional con plan personalizado, educación diabetológica, examen de neuropatía, riesgo cardiovascular/renal, "
                 "electrocardiograma si necesario, y integración al programa de soporte del Dr. Guzmán. "
                 "¿Deseas agendar? (sí/no)")
-    # Dirección/ubicación
     if "direccion" in t or "ubicacion" in t or "ubicado" in t or "queda" in t:
         return ("En Guayaquil: Hospital de Especialidades de la Ciudad (antigua Clínica Kennedy Alborada), Torre Sur, Consultorio 204. GPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7\n"
                 "En Milagro: Clínica Santa Elena (Av. Cristóbal Colón y Gral. P. J. Montero). GPS: https://maps.app.goo.gl/sE2ehFSeDVWAQj867\n"
                 "¿En cuál sede deseas agendar?")
-    # Horarios
     if "horario" in t or "hora" in t or "cuando atienden" in t:
         return ("Previa cita: Lunes a Viernes 8:00-12:00 y 16:00-19:30. Sábado 9:00-16:00. Domingo solo emergencias. "
                 "¿Qué día te conviene?")
-    # Servicios
     if "servicios" in t or "que ofrecen" in t or "consiste la consulta" in t:
         return ("Servicios: Tratamiento de Diabetes (Tipo 1/2/Gestacional), Prediabetes, Hígado Graso, Sobrepeso/Obesidad, Pie Diabético, "
                 "Curación de Heridas, Dolor Crónico, Neuropatía, Enfermedad Renal, Tiroides, Emergencias Diabéticas, Hospitalización/Domicilio, Insulinización. "
                 "¿Más detalles o agendar?")
-    # Urgencias/emergencias
     if "urgencia" in t or "emergencia" in t:
         return ("Esta línea es para agendamientos y consultas. Para emergencias, puedo ayudarte a agendar rápido o comunícate directamente con el Dr. Guzmán al 0962062122 explicando tu caso.")
     return None
@@ -510,7 +484,6 @@ def schedule_contact_wizard(user_text: str, state: Dict, session_id: str) -> Opt
     contact = state.setdefault("contact", {})
     awaiting = state.get("awaiting")
 
-    # Preguntar por sede si no está definida
     if not state.get("pending_where") and awaiting != "where":
         state["awaiting"] = "where"
         return "Por favor, ¿en qué sede desea atenderse? (Guayaquil o Milagro)"
@@ -527,10 +500,8 @@ def schedule_contact_wizard(user_text: str, state: Dict, session_id: str) -> Opt
     if awaiting == "name":
         name = extract_name(user_text) or user_text.strip().title()
         contact["name"] = name
-        parts = name.split()
-        apellido = parts[-1] if len(parts) >= 2 else name
         state["awaiting"] = "cedula"
-        return (f"Gracias. ¿Me indica su número de cédula por favor?")
+        return "Gracias. ¿Me indica su número de cédula por favor?"
 
     if awaiting == "cedula":
         contact["cedula"] = user_text.strip()
@@ -598,7 +569,6 @@ def schedule_contact_wizard(user_text: str, state: Dict, session_id: str) -> Opt
     return None
 
 def schedule_reminders(appt: Appointment):
-    """Programa recordatorios por Telegram (siempre) y WhatsApp (si hay teléfono)."""
     if not SCHED:
         return
     when = datetime.fromisoformat(appt.when_iso)
@@ -607,13 +577,11 @@ def schedule_reminders(appt: Appointment):
         run_at = when - timedelta(hours=hours_before)
         if run_at > datetime.now(TZ):
             msg = f"⏰ Recordatorio: cita {format_dt_es(when)} — {appt.where}"
-            # Telegram siempre (si está configurado)
             try:
                 job = SCHED.add_job(lambda m=msg: notify_telegram(m), 'date', run_date=run_at)
                 jobs.append(job.id)
             except Exception:
                 pass
-            # WhatsApp si hay número y credenciales
             if appt.contact_phone:
                 try:
                     job_w = SCHED.add_job(lambda m=msg, p=appt.contact_phone: notify_whatsapp(p, m),
@@ -654,11 +622,9 @@ def send_inactivity_message(session_id: str, level: str, phone: str):
 def schedule_flow(user_text: str, state: Dict, session_id: str) -> Optional[str]:
     t = user_text.lower()
 
-    # Recolección de datos en curso
     if state.get("awaiting") in {"where", "name","cedula","birthdate","email","honorific","phone","consent","channel"}:
         return schedule_contact_wizard(user_text, state, session_id)
 
-    # Cancelación
     if any(k in t for k in CANCEL_KEYWORDS):
         last = next((a for a in reversed(APPOINTMENTS) if a.session_id == session_id and a.status=="scheduled"), None)
         if not last:
@@ -683,7 +649,6 @@ def schedule_flow(user_text: str, state: Dict, session_id: str) -> Optional[str]
             return "De acuerdo, mantenemos su cita. ¿En qué más puedo ayudarle?"
         return "¿Confirma la cancelación? (sí/no)"
 
-    # Reagendar
     if any(k in t for k in REBOOK_KEYWORDS):
         new_dt = parse_dt_es(user_text)
         if not new_dt:
@@ -732,7 +697,6 @@ def schedule_flow(user_text: str, state: Dict, session_id: str) -> Optional[str]
             return "De acuerdo, mantenemos su cita actual. ¿Desea otra cosa?"
         return "¿Confirma el cambio de horario? (sí/no)"
 
-    # Nueva cita: confirmar propuesta existente
     if "pending_when" in state:
         if any(w in t for w in YES_WORDS):
             msg = schedule_contact_wizard(user_text="", state=state, session_id=session_id)
@@ -780,8 +744,6 @@ def schedule_flow(user_text: str, state: Dict, session_id: str) -> Optional[str]
                 contact_phone=contact.get("phone"),
             )
             APPOINTMENTS.append(appt)
-
-            # Recordatorios (Telegram + WhatsApp si hay teléfono)
             schedule_reminders(appt)
 
             lugar = CLINIC_GYE if where.lower().startswith("g") else CLINIC_MILAGRO
@@ -803,7 +765,6 @@ def schedule_flow(user_text: str, state: Dict, session_id: str) -> Optional[str]
             return f"¿Confirmo {format_dt_es(new_dt)}? (sí/no)"
         return "¿Confirma la fecha/hora propuesta? (sí/no) o indíqueme otra fecha."
 
-    # Intención nueva de agendar
     if any(k in t for k in SCHEDULE_KEYWORDS):
         where = "Guayaquil"
         if "milagro" in t:
@@ -817,7 +778,6 @@ def schedule_flow(user_text: str, state: Dict, session_id: str) -> Optional[str]
         state["pending_when"] = dt
         return f"¿Le reservo {format_dt_es(dt)} en {where}? (sí/no)"
 
-    # Memorizar intención para frases con fecha suelta
     if any(k in t for k in ("agenda", "agendar", "cita", "reservar")):
         state["agenda_context"] = True
     if state.get("agenda_context"):
@@ -843,8 +803,7 @@ def generic_reply(user_text: str, state: Dict) -> str:
                 f"5. Agendar una cita\n"
                 f"O dime si necesitas algo más.")
     if "deseo mas informacion" in t:
-        return (f"Hola! Soy Ana la asistente del Dr. Guzmán, en qué puedo ayudarte específicamente. "
-                f"Cabe aclarar que el Dr. Guzmán es un profesional en el área de la Diabetes y estará gustoso de poder ayudarte. "
+        return (f"Hola! Soy Ana la asistente del Dr. Guzmán, ¿en qué puedo ayudarte específicamente? "
                 f"Elige una opción:\n"
                 f"1. Precio de la consulta\n"
                 f"2. Direcciones y ubicaciones\n"
@@ -864,13 +823,12 @@ def generic_reply(user_text: str, state: Dict) -> str:
 def ana_reply(user_text: str, session: Dict, session_id: str) -> str:
     state = session.setdefault("state", {})
     state["last_message_time"] = datetime.now(TZ).isoformat()
-    state["conversation_stage"] = "general"  # Actualiza según flujo
+    state["conversation_stage"] = "general"
 
     urg = red_flag_guard(user_text)
     if urg:
         return urg
 
-    # FAQs estratégicas (antes que otros flujos)
     faq = faq_flow(user_text)
     if faq:
         return faq
@@ -916,7 +874,6 @@ def chat(inp: ChatIn) -> ChatOut:
 # ============================================================
 @app.get("/webhook")
 async def whatsapp_webhook_verify(request: Request):
-    # Verificación de Meta (GET)
     mode = request.query_params.get("hub.mode")
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
@@ -927,10 +884,8 @@ async def whatsapp_webhook_verify(request: Request):
 @app.post("/webhook")
 async def whatsapp_webhook_receive(request: Request):
     """
-    Procesa mensajes entrantes de WhatsApp:
-    - Extrae 'from' y 'text'
-    - Llama al flujo /chat con session_id estable 'wa:<from>'
-    - Devuelve la respuesta al usuario por WhatsApp
+    Procesa mensajes entrantes de WhatsApp y responde usando ana_reply DIRECTO
+    (CAMBIO: sin puente HTTP interno).
     """
     try:
         payload = await request.json()
@@ -938,24 +893,23 @@ async def whatsapp_webhook_receive(request: Request):
         return {"status": "bad_json"}
     try:
         changes = payload["entry"][0]["changes"][0]["value"]
-        # Mensajes (puede venir un array)
         msg = changes.get("messages", [])[0]
         from_id = msg["from"]  # ej: '5939XXXXXXX'
         text_in = (msg.get("text", {}) or {}).get("body", "") or ""
     except Exception:
-        # Siempre 200 para no forzar reintentos infinitos de Meta
         return {"status": "ignored"}
-    # Id de sesión estable por número
+
     session_id = f"wa:{from_id}"
-    # Llama a TU flujo de chat (igual que pruebas en /docs)
-    reply = chat_reply_via_http(session_id, text_in)
-    # Responde por WhatsApp
+    # CAMBIO: construir sesión y llamar a ana_reply
+    session = SESSIONS.setdefault(session_id, {"history": [], "state": {}})
+    session["history"].append({"role": "user", "content": text_in})
+    reply = ana_reply(text_in, session, session_id)
+    session["history"].append({"role": "assistant", "content": reply})
+
     try:
         wa_send_text(from_id, reply)
-    except Exception as e:
-        # Evita que un fallo en el envío haga que Meta reintente sin parar
+    except Exception:
         pass
-    # Responder 200 OK siempre a Meta
     return {"status": "ok"}
 
 # ======================================================================
@@ -983,22 +937,31 @@ async def whatsapp_webhook_receive_alt(request: Request):
         text_in = (msg.get("text", {}) or {}).get("body", "") or ""
     except Exception:
         return {"status": "ignored"}
+
     session_id = f"wa:{from_id}"
-    reply = chat_reply_via_http(session_id, text_in)
+    # CAMBIO: directo a ana_reply
+    session = SESSIONS.setdefault(session_id, {"history": [], "state": {}})
+    session["history"].append({"role": "user", "content": text_in})
+    reply = ana_reply(text_in, session, session_id)
+    session["history"].append({"role": "assistant", "content": reply})
+
     try:
         wa_send_text(from_id, reply)
     except Exception:
         pass
     return {"status": "ok"}
-# ==========================
-# TELEGRAM WEBHOOK OPCIONAL
-# ==========================
-from fastapi import Request
 
-
+# ==========================
+# TELEGRAM WEBHOOK
+# ==========================
 def tg_send(chat_id: str, text: str):
+    if not TELEGRAM_BOT_TOKEN:
+        return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=15)
+    try:
+        requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=15)
+    except Exception:
+        pass
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request):
@@ -1009,10 +972,12 @@ async def telegram_webhook(request: Request):
     if not chat_id or not text_in:
         return {"ok": True}
 
-    # Usa un session_id estable por usuario
     session_id = f"tg:{chat_id}"
-    reply = chat_reply_via_http(session_id, text_in)
+    # CAMBIO: directo a ana_reply
+    session = SESSIONS.setdefault(session_id, {"history": [], "state": {}})
+    session["history"].append({"role": "user", "content": text_in})
+    reply = ana_reply(text_in, session, session_id)
+    session["history"].append({"role": "assistant", "content": reply})
 
-    # Enviar respuesta
     tg_send(chat_id, reply)
     return {"ok": True}
