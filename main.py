@@ -18,9 +18,10 @@
 #   TELEGRAM_CHAT_ID=...
 #   GOOGLE_CALENDAR_ID=primary
 #   APPT_DURATION_MIN=45
-#   # Para WhatsApp Cloud API (opcional):
+#   ANA_VERIFY=ANA_CHATBOT
 #   WHATSAPP_TOKEN=...
 #   WHATSAPP_PHONE_ID=...
+#   PORT=8080
 #   # Para credenciales de Google (opción práctica en Railway):
 #   GOOGLE_TOKEN_JSON={...contenido completo de token.json...}
 #
@@ -34,7 +35,7 @@ from typing import Dict, List, Optional
 from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dateparser import parse as dp_parse
@@ -48,6 +49,48 @@ try:
 except Exception:
     BackgroundScheduler = None
     SCHED_AVAILABLE = False
+
+# =========================
+# BLOQUE 1: utilidades WA
+# =========================
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
+WHATSAPP_PHONE_ID = os.getenv("WHATSAPP_PHONE_ID", "")
+ANA_VERIFY = os.getenv("ANA_VERIFY", "ANA_CHATBOT")
+PORT = os.getenv("PORT", "8080")  # Railway suele usar 8080
+
+def wa_send_text(to: str, body: str):
+    """Envía un texto por WhatsApp Cloud."""
+    url = f"https://graph.facebook.com/v19.0/{WHATSAPP_PHONE_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": (body or "")[:4096]}
+    }
+    r = requests.post(url, headers=headers, json=data, timeout=20)
+    # Si algo falla, lanza excepción para que lo veas en logs
+    r.raise_for_status()
+    return r.json()
+
+def chat_reply_via_http(session_id: str, text: str) -> str:
+    """Llama a TU endpoint /chat y devuelve el campo 'reply'."""
+    # Llamada interna al mismo servicio
+    chat_url = f"http://127.0.0.1:{PORT}/chat"
+    try:
+        resp = requests.post(
+            chat_url,
+            json={"session_id": session_id, "text": text},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("reply", "Gracias, lo reviso y le confirmo.")
+    except Exception:
+        return "Gracias, lo reviso y le confirmo."
 
 # Google Calendar
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
@@ -69,12 +112,8 @@ if GOOGLE_TOKEN_JSON:
 TZ = ZoneInfo("America/Guayaquil")
 APPT_DURATION_MIN = int(os.getenv("APPT_DURATION_MIN", "45"))
 GOOGLE_CALENDAR_ID = os.getenv("GOOGLE_CALENDAR_ID", "primary")
-
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
-
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
-WHATSAPP_PHONE_ID = os.getenv("WHATSAPP_PHONE_ID", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # Horarios por sede (0=Lunes ... 6=Domingo). Actualizado según memorias.
 WORKING_HOURS = {
@@ -214,16 +253,7 @@ def notify_whatsapp(phone: str, message: str) -> bool:
     if not WHATSAPP_TOKEN or not WHATSAPP_PHONE_ID or not phone:
         return False
     try:
-        url = f"https://graph.facebook.com/v17.0/{WHATSAPP_PHONE_ID}/messages"
-        headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": phone if phone.startswith("+") else f"+{phone}" if not phone.startswith("593") else phone,
-            "type": "text",
-            "text": {"body": message}
-        }
-        r = requests.post(url, json=payload, headers=headers, timeout=10)
-        return r.ok
+        return bool(wa_send_text(phone, message))
     except Exception:
         return False
 
@@ -558,8 +588,6 @@ def schedule_contact_wizard(user_text: str, state: Dict, session_id: str) -> Opt
     if not contact.get("name"):
         state["awaiting"] = "name"
         return "Para asistirle, ¿me indica su nombre y apellido por favor? (Ej.: 'Me llamo Juan Pérez')"
-    # Los demás checks siguen similares, pero con "por favor" y "gracias"
-
     state["contact_ready"] = True
     return None
 
@@ -610,7 +638,7 @@ def send_inactivity_message(session_id: str, level: str, phone: str):
     if phone:
         notify_whatsapp(phone, msg)
     else:
-        notify_telegram(msg)  # O ajusta según canal
+        notify_telegram(msg)
     if level == "first":
         second_time = datetime.now(TZ) + timedelta(minutes=20)
         SCHED.add_job(lambda: send_inactivity_message(session_id, "second", phone), 'date', run_date=second_time)
@@ -664,7 +692,7 @@ def schedule_flow(user_text: str, state: Dict, session_id: str) -> Optional[str]
             state["pending_rebook_when"] = new_dt
             state.pop("rebook_intent", None)
             return f"¿Desea mover su cita a {format_dt_es(new_dt)}? (sí/no)"
-        return "¿Podría indicarme la nueva fecha y hora por favor? (ej.: martes 10:00)"
+        return "¿Podría indíqueme la nueva fecha y hora por favor? (ej.: martes 10:00)"
 
     if "pending_rebook_when" in state:
         if any(w in t for w in YES_WORDS):
@@ -811,7 +839,12 @@ def generic_reply(user_text: str, state: Dict) -> str:
     if "deseo mas informacion" in t:
         return (f"Hola! Soy Ana la asistente del Dr. Guzmán, en qué puedo ayudarte específicamente. "
                 f"Cabe aclarar que el Dr. Guzmán es un profesional en el área de la Diabetes y estará gustoso de poder ayudarte. "
-                f"Elige una opción: 1. Precios, 2. Direcciones, etc.")  # Reusa menú
+                f"Elige una opción:\n"
+                f"1. Precio de la consulta\n"
+                f"2. Direcciones y ubicaciones\n"
+                f"3. En qué consiste la consulta médica\n"
+                f"4. Contactar directamente con el Dr. Guzmán\n"
+                f"5. Agendar una cita")
     if any(w in t for w in ["hola", "buenos días", "buenas tardes", "buenas noches", "holi"]):
         return f"¡Hola! {get_time_greeting()} ¿En qué puedo ayudarle?"
     if any(w in t for w in ["gracias", "muchas gracias"]):
@@ -871,50 +904,83 @@ def chat(inp: ChatIn) -> ChatOut:
     session["history"].append({"role": "assistant", "content": reply})
     schedule_inactivity_reminder(inp.session_id)
     return ChatOut(reply=reply)
-# --- WhatsApp Cloud API: VERIFICACIÓN Y RECEPCIÓN WEBHOOK ---
 
-from fastapi import Request, HTTPException
-import os
-
-# Debe existir en Railway como variable: ANA_VERIFY=ANA_CHATBOT  (o el valor que uses)
-VERIFY_TOKEN = os.getenv("ANA_VERIFY", "ANA_CHATBOT")
-
-def _verify_params(params: dict):
-    """
-    Meta llama con ?hub.mode=&hub.verify_token=&hub.challenge=
-    Debemos devolver hub.challenge si el verify_token coincide.
-    """
-    mode = params.get("hub.mode")
-    token = params.get("hub.verify_token")
-    challenge = params.get("hub.challenge")
-
-    if mode == "subscribe" and token == VERIFY_TOKEN and challenge is not None:
-        # Meta acepta texto plano o número. Si es numérico, devuelve int.
-        return int(challenge) if str(challenge).isdigit() else challenge
-    # Si no coincide, 403 (Meta lo interpreta como verificación fallida)
-    raise HTTPException(status_code=403, detail="Verification failed")
-
-# Ruta corta que estás usando en Meta: /webhook
+# ============================================================
+# BLOQUE 2: /webhook (WhatsApp oficial)
+# ============================================================
 @app.get("/webhook")
 async def whatsapp_webhook_verify(request: Request):
-    params = dict(request.query_params)
-    return _verify_params(params)
+    # Verificación de Meta (GET)
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+    if mode == "subscribe" and token == ANA_VERIFY:
+        return Response(content=challenge, media_type="text/plain")
+    return Response(status_code=403)
 
-# Por si en algún momento usas el prefijo /whatsapp/webhook
-@app.get("/whatsapp/webhook")
-async def whatsapp_webhook_verify_alt(request: Request):
-    params = dict(request.query_params)
-    return _verify_params(params)
-
-# Recepción de mensajes entrantes (Meta hace POST aquí)
 @app.post("/webhook")
 async def whatsapp_webhook_receive(request: Request):
-    data = await request.json()
-    # TODO: aquí procesas el mensaje (si quieres responder automático)
-    # Para no fallar verificación de Meta, siempre responde 200 OK.
+    """
+    Procesa mensajes entrantes de WhatsApp:
+    - Extrae 'from' y 'text'
+    - Llama al flujo /chat con session_id estable 'wa:<from>'
+    - Devuelve la respuesta al usuario por WhatsApp
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"status": "bad_json"}
+    try:
+        changes = payload["entry"][0]["changes"][0]["value"]
+        # Mensajes (puede venir un array)
+        msg = changes.get("messages", [])[0]
+        from_id = msg["from"]  # ej: '5939XXXXXXX'
+        text_in = (msg.get("text", {}) or {}).get("body", "") or ""
+    except Exception:
+        # Siempre 200 para no forzar reintentos infinitos de Meta
+        return {"status": "ignored"}
+    # Id de sesión estable por número
+    session_id = f"wa:{from_id}"
+    # Llama a TU flujo de chat (igual que pruebas en /docs)
+    reply = chat_reply_via_http(session_id, text_in)
+    # Responde por WhatsApp
+    try:
+        wa_send_text(from_id, reply)
+    except Exception as e:
+        # Evita que un fallo en el envío haga que Meta reintente sin parar
+        pass
+    # Responder 200 OK siempre a Meta
     return {"status": "ok"}
+
+# ======================================================================
+# BLOQUE 3: /whatsapp/webhook (ruta alternativa)
+# ======================================================================
+@app.get("/whatsapp/webhook")
+async def whatsapp_webhook_verify_alt(request: Request):
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+    if mode == "subscribe" and token == ANA_VERIFY:
+        return Response(content=challenge, media_type="text/plain")
+    return Response(status_code=403)
 
 @app.post("/whatsapp/webhook")
 async def whatsapp_webhook_receive_alt(request: Request):
-    data = await request.json()
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"status": "bad_json"}
+    try:
+        changes = payload["entry"][0]["changes"][0]["value"]
+        msg = changes.get("messages", [])[0]
+        from_id = msg["from"]
+        text_in = (msg.get("text", {}) or {}).get("body", "") or ""
+    except Exception:
+        return {"status": "ignored"}
+    session_id = f"wa:{from_id}"
+    reply = chat_reply_via_http(session_id, text_in)
+    try:
+        wa_send_text(from_id, reply)
+    except Exception:
+        pass
     return {"status": "ok"}
