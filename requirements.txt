@@ -1,23 +1,26 @@
-# Servidor API
-fastapi
-uvicorn
-
-# HTTP Requests
-requests
-python-dotenv
-
-# Manejo de datos
-pandas
-dateparser
-
-# Google Calendar y OAuth
-google-api-python-client
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
-
-# Opcional (si usas CSV y análisis extra)
-openpyxl
-
-apscheduler
-
+annotated-types==0.7.0
+anyio==4.11.0
+certifi==2025.8.3
+charset-normalizer==3.4.3
+click==8.3.0
+colorama==0.4.6
+dateparser==1.2.2
+fastapi==0.117.1
+h11==0.16.0
+idna==3.10
+pydantic==2.11.9
+pydantic_core==2.33.2
+python-dateutil==2.9.0.post0
+python-dotenv==1.1.1
+pytz==2025.2
+regex==2025.9.18
+requests==2.32.5
+six==1.17.0
+sniffio==1.3.1
+starlette==0.48.0
+typing-inspection==0.4.1
+typing_extensions==4.15.0
+tzdata==2025.2
+tzlocal==5.3.1
+urllib3==2.5.0
+uvicorn==0.37.0
