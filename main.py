@@ -77,9 +77,15 @@ def wa_send_text(to: str, body: str):
     return r.json()
 
 def chat_reply_via_http(session_id: str, text: str) -> str:
-    """Llama a TU endpoint /chat y devuelve el campo 'reply'."""
-    # Llamada interna al mismo servicio
-    chat_url = f"http://127.0.0.1:{PORT}/chat"
+    """Llama a /chat por HTTP dentro del mismo servicio y devuelve el 'reply'.
+    Usa INTERNAL_CHAT_URL si está definida; si no, asume http://127.0.0.1:{PORT}/chat.
+    Local: PORT defaults to 8000. En Railway: PORT lo inyecta la plataforma.
+    """
+    import os, requests
+    chat_url = os.getenv("INTERNAL_CHAT_URL")
+    if not chat_url:
+        port = os.getenv("PORT", "8000")
+        chat_url = f"http://127.0.0.1:{port}/chat"
     try:
         resp = requests.post(
             chat_url,
@@ -984,3 +990,29 @@ async def whatsapp_webhook_receive_alt(request: Request):
     except Exception:
         pass
     return {"status": "ok"}
+# ==========================
+# TELEGRAM WEBHOOK OPCIONAL
+# ==========================
+from fastapi import Request
+
+
+def tg_send(chat_id: str, text: str):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=15)
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request):
+    update = await request.json()
+    msg = update.get("message") or {}
+    chat_id = str(msg.get("chat", {}).get("id"))
+    text_in = (msg.get("text") or "").strip()
+    if not chat_id or not text_in:
+        return {"ok": True}
+
+    # Usa un session_id estable por usuario
+    session_id = f"tg:{chat_id}"
+    reply = chat_reply_via_http(session_id, text_in)
+
+    # Enviar respuesta
+    tg_send(chat_id, reply)
+    return {"ok": True}
