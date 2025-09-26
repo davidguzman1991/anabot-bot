@@ -1,0 +1,13 @@
+__pycache__/
+venv/
+.venv/
+.env
+.env.*
+credentials.json
+token.json
+*token*.json
+*.db
+*.sqlite*
+_tmp/.vscode/.idea/.DS_Store
+chatbot_ana_base_conocimiento.csv
+
