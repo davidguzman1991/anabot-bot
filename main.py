@@ -254,7 +254,7 @@ def location_info() -> str:
         f"{E['pin']} **Guayaquil:** Hospital de Especialidades (ant. Clínica Kennedy Alborada), Torre Sur, C.204. "
         "GPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7"
         f"\n{E['pin']} **Milagro:** Clínica Santa Elena (Av. Cristóbal Colón y Gral. P. J. Montero). "
-        "GPS: https://maps.app.goo.gl/sE2ehFSeDVWAQj867"
+        "GPS: https://maps.app.goo.gl/dxZqqW91yS5JLF79A"
         f"\n\n{E['think']} ¿En **qué sede** deseas atenderte?"
     )
 
@@ -530,9 +530,11 @@ def schedule_flow(user_text: str, state: Dict, session_id: str) -> Optional[str]
                 "where":where, "event_id":ev_id, "status":"scheduled",
                 "created_at": datetime.now(TZ).isoformat()
             })
-            lugar = ("Hospital de Especialidades — Torre Sur, C.204 (Guayaquil)"
+            lugar = ("Hospital de Especialidades - Torre Sur, C.204 (Guayaquil)
+GPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7"
                      if where.lower().startswith("g") else
-                     "Clínica Santa Elena (Milagro)")
+                     "Clínica Santa Elena (Milagro)
+GPS: https://maps.app.goo.gl/dxZqqW91yS5JLF79A")
             cal_msg = "Agregada al Google Calendar." if ev_id else "No se pudo agregar al Calendar."
             return (f"{E['ok']} ¡Listo! Agendé para **{format_dt_es(when)}** en **{where}**.\n"
                     f"{E['pin']} {lugar}\n{E['calendar']} {cal_msg}\n"
