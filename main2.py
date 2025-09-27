@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 import requests
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
@@ -121,17 +121,24 @@ LOCATIONS = {
 
 
 @app.post("/telegram/webhook")
-async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
+async def telegram_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+):
+    expected_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
+    if expected_secret:
+        if x_telegram_bot_api_secret_token != expected_secret:
+            logging.warning("Webhook rechazado: secret inválido o ausente")
+            raise HTTPException(status_code=403, detail="Forbidden")
+        logging.info("Webhook recibido con secret válido")
+    else:
+        logging.debug("Webhook recibido sin secret configurado")
+
     try:
         payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    expected_secret = os.getenv("ANA_VERIFY")
-    if expected_secret:
-        provided_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
-        if provided_secret != expected_secret:
-            raise HTTPException(status_code=403, detail="invalid secret")
 
     background_tasks.add_task(process_update, payload)
     return {"ok": True}
