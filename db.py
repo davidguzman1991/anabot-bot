@@ -1,36 +1,21 @@
 import os
 from sqlalchemy import create_engine
-from sqlalchemy.engine.url import make_url
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-RAW_URL = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
+# Lee la URL de la base (Railway la inyecta como DATABASE_URL).
+# Fallback a SQLite local para desarrollo.
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./dev.db')
 
+# SQLite necesita este connect_arg; Postgres no.
+connect_args = {'check_same_thread': False} if DATABASE_URL.startswith('sqlite') else {}
 
-def normalize_url(raw: str):
-    url = make_url(raw)
+# pool_pre_ping=True evita conexiones muertas en entornos cloud
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
 
-    if url.drivername.startswith("postgresql") and "+psycopg" not in url.drivername:
-        url = url.set(drivername="postgresql+psycopg")
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-    host = (url.host or "").lower()
-    q = dict(url.query) if url.query else {}
-
-    if "proxy.rlwy.net" in host or host.endswith(".railway.app"):
-        q.setdefault("sslmode", "require")
-        url = url.set(query=q)
-    else:
-        if "sslmode" in q:
-            q.pop("sslmode", None)
-            url = url.set(query=q)
-
-    return url
-
-
-URL = normalize_url(RAW_URL)
-engine = create_engine(URL, pool_pre_ping=True, future=True)
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-
-
+# Dependencia para FastAPI: inyecta una sesión y la cierra al final
 def get_db():
     db = SessionLocal()
     try:
