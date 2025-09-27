@@ -62,10 +62,11 @@ def health():
 def db_ping():
     try:
         with engine.connect() as conn:
-            val = conn.exec_driver_sql("SELECT 1").scalar_one()
-        return {"db": "ok", "val": int(val)}
-    except Exception:
-        raise HTTPException(status_code=500, detail="db ping failed")
+            conn.exec_driver_sql("SELECT 1")
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ping a la base de datos fallido: {type(e).__name__}: {e}")
+
 
 
 ConversationState = Dict[str, Any]

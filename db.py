@@ -1,25 +1,32 @@
-from __future__ import annotations
-
+import os
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine.url import make_url
 
-from config import get_settings
+RAW_URL = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
 
-settings = get_settings()
-DATABASE_URL = settings.DATABASE_URL
+def normalize_url(raw: str):
+    url = make_url(raw)
 
-engine_kwargs: dict[str, object] = {"pool_pre_ping": True}
-if DATABASE_URL.startswith("sqlite"):
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
+    # Asegura psycopg v3 como driver
+    if url.drivername.startswith("postgresql") and "+psycopg" not in url.drivername:
+        url = url.set(drivername="postgresql+psycopg")
 
-engine = create_engine(DATABASE_URL, **engine_kwargs)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-Base = declarative_base()
+    host = (url.host or "").lower()
+    q = dict(url.query) if url.query else {}
 
+    # Proxy público → SSL obligatorio
+    if "proxy.rlwy.net" in host or host.endswith(".railway.app"):
+        q.setdefault("sslmode", "require")
+        url = url.set(query=q)
+    else:
+        # Host interno (p.ej. postgres.railway.internal) → sin sslmode
+        if "sslmode" in q:
+            q.pop("sslmode", None)
+            url = url.set(query=q)
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    return url
+
+URL = normalize_url(RAW_URL)
+engine = create_engine(URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
