@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 import requests
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
@@ -66,6 +66,13 @@ def db_ping():
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ping a la base de datos fallido: {type(e).__name__}: {e}")
+
+# --- NOOP webhook para silenciar 404 de scrapers externos ---
+@app.api_route("/webhook", methods=["GET", "POST"], include_in_schema=False)
+def noop_webhook():
+    return Response(status_code=200)
+# --- fin NOOP webhook ---
+
 
 
 
