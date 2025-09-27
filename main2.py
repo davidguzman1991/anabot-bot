@@ -8,13 +8,13 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 import requests
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
 
 from config import get_settings
-from db import engine, get_db
+from db import engine
 from repo import create_appointment, get_patient_by_dni, upsert_patient
 from utils.google_calendar import create_calendar_event
 
@@ -121,144 +121,160 @@ LOCATIONS = {
 
 
 @app.post("/telegram/webhook")
-async def telegram_webhook(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    update = await request.json()
-    message = update.get("message") or update.get("edited_message")
-    if not message:
-        return {"ok": True}
+async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    chat = message["chat"]["id"]
-    text = (message.get("text") or "").strip()
-    if not text:
-        send_message(chat, "Solo puedo leer texto por ahora, ¿puedes escribirlo?")
-        return {"ok": True}
+    expected_secret = os.getenv("ANA_VERIFY")
+    if expected_secret:
+        provided_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if provided_secret != expected_secret:
+            raise HTTPException(status_code=403, detail="invalid secret")
 
-    state = SESSIONS.get(str(chat)) or reset_session(str(chat))
-    normalized = norm(text)
-    data = state["data"]
-
-    if state["stage"] == "ask_dni":
-        if not re.fullmatch(r"[0-9]{9,12}", normalized):
-            send_message(chat, "Necesito tu número de cédula (9-12 dígitos). Inténtalo nuevamente.")
-            return {"ok": True}
-        data["dni"] = normalized
-        patient = get_patient_by_dni(db, normalized)
-        if patient:
-            data["patient"] = patient
-            state["stage"] = "confirm_existing"
-            send_message(
-                chat,
-                f"Tengo registrado a {patient.full_name} (Tel: {patient.phone or 'sin teléfono'}). "
-                "¿Deseas usar estos datos? (responde sí/no)",
-            )
-        else:
-            state["stage"] = "ask_name"
-            send_message(chat, "Perfecto, ¿Cuál es tu nombre completo?")
-        return {"ok": True}
-
-    if state["stage"] == "confirm_existing":
-        if normalized in {"si", "sí", "claro", "ok"}:
-            patient = data["patient"]
-            data["patient_id"] = patient.id
-            data["full_name"] = patient.full_name
-            data["phone"] = patient.phone or ""
-            state["stage"] = "choose_location"
-            send_message(chat, "¿En qué sede prefieres atenderte? 1) Guayaquil  2) Milagro")
-        elif normalized in {"no", "prefiero no"}:
-            state["stage"] = "ask_name"
-            send_message(chat, "Entendido. ¿Cuál es tu nombre completo?")
-        else:
-            send_message(chat, "Responde con sí o no para continuar.")
-        return {"ok": True}
-
-    if state["stage"] == "ask_name":
-        data["full_name"] = text.strip()
-        state["stage"] = "ask_phone"
-        send_message(chat, "¿Cuál es tu número de teléfono o WhatsApp?")
-        return {"ok": True}
-
-    if state["stage"] == "ask_phone":
-        data["phone"] = text.strip()
-        state["stage"] = "choose_location"
-        send_message(chat, "¿En qué sede prefieres atenderte? 1) Guayaquil  2) Milagro")
-        return {"ok": True}
-
-    if state["stage"] == "choose_location":
-        if normalized not in LOCATIONS:
-            send_message(chat, "Elige 1 para Guayaquil o 2 para Milagro.")
-            return {"ok": True}
-        data["location"] = LOCATIONS[normalized]
-        state["stage"] = "choose_slot"
-        send_message(chat, "Disponibilidad: 1) Hoy tarde (16:00)  2) Mañana mañana (10:00). ¿Cuál prefieres?")
-        return {"ok": True}
-
-    if state["stage"] == "choose_slot":
-        slot = compute_slot(normalized)
-        if not slot:
-            send_message(chat, "Elige 1 o 2 para definir el horario.")
-            return {"ok": True}
-
-        end_dt = slot + timedelta(minutes=APPT_DURATION_MIN)
-        dni = data["dni"]
-
-        patient = data.get("patient")
-        if not patient:
-            patient = upsert_patient(
-                db,
-                dni=dni,
-                full_name=data.get("full_name", ""),
-                phone=data.get("phone", ""),
-            )
-        else:
-            patient = upsert_patient(
-                db,
-                dni=dni,
-                full_name=data.get("full_name", patient.full_name),
-                phone=data.get("phone", patient.phone or ""),
-            )
-
-        calendar_result = create_calendar_event(
-            summary="Consulta con el Dr. Guzmán",
-            description=f"Paciente: {patient.full_name}\nCédula: {patient.dni}\nCanal: Telegram",
-            start_dt=slot,
-            duration_minutes=APPT_DURATION_MIN,
-            location=data["location"],
-        )
-
-        event_id = None
-        html_link = None
-        if calendar_result:
-            event_id = calendar_result.get("id")
-            html_link = calendar_result.get("htmlLink")
-
-        appointment = create_appointment(
-            db,
-            patient_id=patient.id,
-            start_at=slot,
-            end_at=end_dt,
-            location=data["location"],
-            source="telegram",
-            calendar_event_id=event_id,
-            calendar_link=html_link,
-        )
-
-        confirmation = (
-            f"¡Listo {patient.full_name}! Reservé tu cita para {format_dt(appointment.start_at)}.\n"
-            f"Sede:\n{data['location']}"
-        )
-        if html_link:
-            confirmation += f"\nLink del evento: {html_link}"
-
-        send_message(chat, confirmation)
-        reset_session(str(chat))
-        return {"ok": True}
-
-    send_message(chat, "No entendí tu mensaje. Vamos a empezar de nuevo. Indica tu número de cédula, por favor.")
-    reset_session(str(chat))
+    background_tasks.add_task(process_update, payload)
     return {"ok": True}
 
 
+def process_update(payload: Dict[str, Any]) -> None:
+    try:
+        message = payload.get("message") or payload.get("edited_message")
+        if not message:
+            return
+
+        chat = message.get("chat", {}).get("id")
+        if not chat:
+            return
+
+        text = (message.get("text") or "").strip()
+        if not text:
+            send_message(chat, "Solo puedo leer texto por ahora, ¿puedes escribirlo?")
+            return
+
+        state = SESSIONS.get(str(chat)) or reset_session(str(chat))
+        normalized = norm(text)
+        data = state["data"]
+
+        with Session(engine) as db:
+            if state["stage"] == "ask_dni":
+                if not re.fullmatch(r"[0-9]{9,12}", normalized):
+                    send_message(chat, "Necesito tu número de cédula (9-12 dígitos). Inténtalo nuevamente.")
+                    return
+                data["dni"] = normalized
+                patient = get_patient_by_dni(db, normalized)
+                if patient:
+                    data["patient"] = patient
+                    state["stage"] = "confirm_existing"
+                    send_message(
+                        chat,
+                        f"Tengo registrado a {patient.full_name} (Tel: {patient.phone or 'sin teléfono'}). "
+                        "¿Deseas usar estos datos? (responde sí/no)",
+                    )
+                else:
+                    state["stage"] = "ask_name"
+                    send_message(chat, "Perfecto, ¿Cuál es tu nombre completo?")
+                return
+
+            if state["stage"] == "confirm_existing":
+                if normalized in {"si", "sí", "claro", "ok"}:
+                    patient = data["patient"]
+                    data["patient_id"] = patient.id
+                    data["full_name"] = patient.full_name
+                    data["phone"] = patient.phone or ""
+                    state["stage"] = "choose_location"
+                    send_message(chat, "¿En qué sede prefieres atenderte? 1) Guayaquil  2) Milagro")
+                elif normalized in {"no", "prefiero no"}:
+                    state["stage"] = "ask_name"
+                    send_message(chat, "Entendido. ¿Cuál es tu nombre completo?")
+                else:
+                    send_message(chat, "Responde con sí o no para continuar.")
+                return
+
+            if state["stage"] == "ask_name":
+                data["full_name"] = text.strip()
+                state["stage"] = "ask_phone"
+                send_message(chat, "¿Cuál es tu número de teléfono o WhatsApp?")
+                return
+
+            if state["stage"] == "ask_phone":
+                data["phone"] = text.strip()
+                state["stage"] = "choose_location"
+                send_message(chat, "¿En qué sede prefieres atenderte? 1) Guayaquil  2) Milagro")
+                return
+
+            if state["stage"] == "choose_location":
+                if normalized not in LOCATIONS:
+                    send_message(chat, "Elige 1 para Guayaquil o 2 para Milagro.")
+                    return
+                data["location"] = LOCATIONS[normalized]
+                state["stage"] = "choose_slot"
+                send_message(chat, "Disponibilidad: 1) Hoy tarde (16:00)  2) Mañana mañana (10:00). ¿Cuál prefieres?")
+                return
+
+            if state["stage"] == "choose_slot":
+                slot = compute_slot(normalized)
+                if not slot:
+                    send_message(chat, "Elige 1 o 2 para definir el horario.")
+                    return
+
+                end_dt = slot + timedelta(minutes=APPT_DURATION_MIN)
+                dni = data["dni"]
+
+                patient = data.get("patient")
+                if not patient:
+                    patient = upsert_patient(
+                        db,
+                        dni=dni,
+                        full_name=data.get("full_name", ""),
+                        phone=data.get("phone", ""),
+                    )
+                else:
+                    patient = upsert_patient(
+                        db,
+                        dni=dni,
+                        full_name=data.get("full_name", patient.full_name),
+                        phone=data.get("phone", patient.phone or ""),
+                    )
+
+                calendar_result = create_calendar_event(
+                    summary="Consulta con el Dr. Guzmán",
+                    description=f"Paciente: {patient.full_name}\nCédula: {patient.dni}\nCanal: Telegram",
+                    start_dt=slot,
+                    duration_minutes=APPT_DURATION_MIN,
+                    location=data["location"],
+                )
+
+                event_id = None
+                html_link = None
+                if calendar_result:
+                    event_id = calendar_result.get("id")
+                    html_link = calendar_result.get("htmlLink")
+
+                appointment = create_appointment(
+                    db,
+                    patient_id=patient.id,
+                    start_at=slot,
+                    end_at=end_dt,
+                    location=data["location"],
+                    source="telegram",
+                    calendar_event_id=event_id,
+                    calendar_link=html_link,
+                )
+
+                confirmation = (
+                    f"¡Listo {patient.full_name}! Reservé tu cita para {format_dt(appointment.start_at)}.\n"
+                    f"Sede:\n{data['location']}"
+                )
+                if html_link:
+                    confirmation += f"\nLink del evento: {html_link}"
+
+                send_message(chat, confirmation)
+                reset_session(str(chat))
+                return
+
+        send_message(chat, "No entendí tu mensaje. Vamos a empezar de nuevo. Indica tu número de cédula, por favor.")
+        reset_session(str(chat))
+    except Exception:
+        logging.exception("telegram update failed")
 
