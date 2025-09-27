@@ -1,134 +1,110 @@
+import json
 import os
-import logging
-from typing import Any, Dict, Optional
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import PlainTextResponse
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse, PlainTextResponse
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("anabot")
-
-app = FastAPI(title="AnaBot", version="1.0.0")
-
-
-@app.get("/")
-async def root() -> PlainTextResponse:
-    return PlainTextResponse("Servidor AnaBot activo")
+app = FastAPI()
 
 
 @app.get("/health")
-async def health() -> Dict[str, bool]:
+async def health():
     return {"ok": True}
+
+
+@app.get("/", response_class=PlainTextResponse)
+async def root():
+    return "Servidor AnaBot activo"
+
+
+TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TG_SECRET = os.getenv("TELEGRAM_SECRET_TOKEN", "")
+
+
+async def tg_send(chat_id: int, text: str):
+    if not TG_TOKEN:
+        print("WARN: TELEGRAM_BOT_TOKEN vacio")
+        return
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, json={"chat_id": chat_id, "text": text})
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:
+                print("TG send error:", exc, "resp:", resp.text)
+    except Exception as exc:
+        print("TG send unexpected error:", exc)
 
 
 @app.post("/webhook/telegram")
 async def telegram_webhook(
     request: Request,
-    x_telegram_bot_api_secret_token: Optional[str] = Header(default=None),
-) -> Dict[str, bool]:
-    expected_secret = os.getenv("TELEGRAM_SECRET_TOKEN")
-    if expected_secret and x_telegram_bot_api_secret_token != expected_secret:
-        logger.warning("Telegram webhook rechazado: secret invalido o ausente")
-        raise HTTPException(status_code=403, detail="Forbidden")
+    x_telegram_bot_api_secret_token: str | None = Header(None),
+):
+    if TG_SECRET and x_telegram_bot_api_secret_token != TG_SECRET:
+        raise HTTPException(status_code=401, detail="Bad secret token")
 
+    update = await request.json()
+    print("TG update:", json.dumps(update, ensure_ascii=False))
+
+    message = update.get("message") or update.get("edited_message")
+    if message and "text" in message:
+        chat_id = message["chat"]["id"]
+        text = message["text"]
+        await tg_send(chat_id, f"AnaBot recibio: {text}")
+    return JSONResponse({"ok": True})
+
+
+WA_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
+WA_PHONE_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+WA_VERIFY = os.getenv("WHATSAPP_VERIFY_TOKEN", "verify_me")
+
+
+async def wa_send(to: str, text: str):
+    if not (WA_TOKEN and WA_PHONE_ID):
+        print("WARN: WA_TOKEN/WA_PHONE_ID vacios")
+        return
+    url = f"https://graph.facebook.com/v20.0/{WA_PHONE_ID}/messages"
+    headers = {"Authorization": f"Bearer {WA_TOKEN}"}
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": text},
+    }
     try:
-        payload: Dict[str, Any] = await request.json()
-    except Exception:
-        logger.exception("Telegram webhook invalido: JSON malformato")
-        print("Telegram webhook: JSON malformato")
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    logger.info("Telegram update recibido: %s", payload)
-    print("Telegram update:", payload)
-
-    message = payload.get("message") or payload.get("edited_message") or {}
-    chat = (message.get("chat") or {}).get("id")
-    text = message.get("text")
-
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if chat and text and token:
-        send_url = f"https://api.telegram.org/bot{token}/sendMessage"
-        body = {"chat_id": chat, "text": f"AnaBot recibio tu mensaje: {text}"}
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(send_url, json=body)
-                if resp.status_code >= 400:
-                    logger.error("Error enviando mensaje Telegram: %s %s", resp.status_code, resp.text)
-                    print("Error enviando mensaje Telegram", resp.status_code, resp.text)
-        except Exception as exc:
-            logger.exception("Fallo enviando respuesta a Telegram")
-            print("Excepcion Telegram", exc)
-    else:
-        if not token:
-            logger.error("TELEGRAM_BOT_TOKEN no configurado")
-        if not chat or not text:
-            logger.info("Telegram update sin texto o chat valido")
-            print("Telegram update sin texto o chat valido")
-
-    return {"ok": True}
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:
+                print("WA send error:", exc, "resp:", resp.text)
+    except Exception as exc:
+        print("WA send unexpected error:", exc)
 
 
 @app.get("/webhook/whatsapp")
-async def whatsapp_verify(
-    hub_mode: Optional[str] = Query(None, alias="hub.mode"),
-    hub_verify_token: Optional[str] = Query(None, alias="hub.verify_token"),
-    hub_challenge: Optional[str] = Query(None, alias="hub.challenge"),
+async def wa_verify(
+    mode: str | None = None,
+    challenge: str | None = None,
+    token: str | None = None,
 ):
-    expected_token = os.getenv("WHATSAPP_VERIFY_TOKEN")
-    if hub_mode == "subscribe" and hub_verify_token == expected_token:
-        return PlainTextResponse(hub_challenge or "")
-    return PlainTextResponse("invalid", status_code=403)
+    if mode == "subscribe" and token == WA_VERIFY:
+        return PlainTextResponse(challenge or "")
+    raise HTTPException(status_code=403, detail="Verification failed")
 
 
 @app.post("/webhook/whatsapp")
-async def whatsapp_webhook(request: Request) -> Dict[str, bool]:
+async def wa_webhook(request: Request):
+    body = await request.json()
+    print("WA update:", json.dumps(body, ensure_ascii=False))
     try:
-        payload: Dict[str, Any] = await request.json()
-    except Exception:
-        logger.exception("WhatsApp webhook invalido: JSON malformato")
-        print("WhatsApp webhook: JSON malformato")
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    logger.info("WhatsApp update recibido: %s", payload)
-    print("WhatsApp update:", payload)
-
-    message = (
-        payload.get("entry") or [{}]
-    )[0].get("changes", [{}])[0].get("value", {}).get("messages", [{}])[0]
-    text_body = (message.get("text") or {}).get("body")
-    wa_from = message.get("from")
-
-    token = os.getenv("WHATSAPP_TOKEN")
-    phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
-
-    if text_body and wa_from and token and phone_id:
-        send_url = f"https://graph.facebook.com/v18.0/{phone_id}/messages"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
-        body = {
-            "messaging_product": "whatsapp",
-            "to": wa_from,
-            "type": "text",
-            "text": {"body": f"AnaBot recibio tu mensaje: {text_body}"},
-        }
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(send_url, json=body, headers=headers)
-                if resp.status_code >= 400:
-                    logger.error("Error enviando mensaje WhatsApp: %s %s", resp.status_code, resp.text)
-                    print("Error enviando mensaje WhatsApp", resp.status_code, resp.text)
-        except Exception as exc:
-            logger.exception("Fallo enviando respuesta a WhatsApp")
-            print("Excepcion WhatsApp", exc)
-    else:
-        if not token or not phone_id:
-            logger.error("Credenciales de WhatsApp incompletas")
-            print("Credenciales de WhatsApp incompletas")
-        if not text_body or not wa_from:
-            logger.info("WhatsApp update sin texto o remitente valido")
-            print("WhatsApp update sin texto o remitente valido")
-
-    return {"ok": True}
+        message = body["entry"][0]["changes"][0]["value"]["messages"][0]
+        from_number = message["from"]
+        text = message.get("text", {}).get("body", "")
+        await wa_send(from_number, f"AnaBot recibio: {text}")
+    except Exception as exc:
+        print("WA parse/send error:", exc)
+    return JSONResponse({"ok": True})

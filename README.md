@@ -35,3 +35,5 @@ Pruebas rapidas:
    - WHATSAPP_VERIFY_TOKEN
 2. Railway usa el Procfile (`web: uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}`).
 3. Verifica las rutas /health, /webhook/telegram y /webhook/whatsapp tras el deploy.
+
+Nota: los webhooks responden 200 inmediatamente; los envios a Telegram/WhatsApp se hacen de forma asincrona y los errores se registran en consola.
