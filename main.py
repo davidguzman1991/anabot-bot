@@ -18,6 +18,11 @@ async def root():
     return "Servidor AnaBot activo"
 
 
+@app.api_route("/webhook", methods=["GET", "POST"], include_in_schema=False)
+async def noop_webhook():
+    return PlainTextResponse("ok")
+
+
 TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TG_SECRET = os.getenv("TELEGRAM_SECRET_TOKEN", "")
 
