@@ -8,13 +8,13 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 import requests
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
 
 from config import get_settings
-from db import get_db
+from db import engine, get_db
 from repo import create_appointment, get_patient_by_dni, upsert_patient
 from utils.google_calendar import create_calendar_event
 
@@ -59,9 +59,13 @@ def health():
 
 
 @app.get("/db/ping")
-def db_ping(db: Session = Depends(get_db)):
-    val = db.execute("SELECT 1").scalar()
-    return {"db": "ok", "val": val}
+def db_ping():
+    try:
+        with engine.connect() as conn:
+            val = conn.exec_driver_sql("SELECT 1").scalar_one()
+        return {"db": "ok", "val": int(val)}
+    except Exception:
+        raise HTTPException(status_code=500, detail="db ping failed")
 
 
 ConversationState = Dict[str, Any]
@@ -254,3 +258,6 @@ async def telegram_webhook(
     send_message(chat, "No entendí tu mensaje. Vamos a empezar de nuevo. Indica tu número de cédula, por favor.")
     reset_session(str(chat))
     return {"ok": True}
+
+
+
