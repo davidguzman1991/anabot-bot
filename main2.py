@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -94,16 +95,26 @@ def reset_session(chat_id: str) -> ConversationState:
 
 
 def send_message(chat_id: int, text: str):
+    async def _send():
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                f"{TELEGRAM_API}/sendMessage",
+                json={"chat_id": chat_id, "text": text},
+            )
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                logger.error(
+                    "Telegram send error: %s %s",
+                    exc.response.status_code if exc.response else "?",
+                    exc.response.text if exc.response else exc,
+                )
+
     try:
-        resp = httpx.post(
-            f"{TELEGRAM_API}/sendMessage",
-            json={"chat_id": chat_id, "text": text},
-            timeout=10,
-        )
-        if resp.status_code >= 400:
-            logger.error("Telegram send error: %s %s", resp.status_code, resp.text)
-    except httpx.HTTPError as exc:
-        logger.error("Telegram send HTTP error: %s", exc)
+        loop = asyncio.get_running_loop()
+        loop.create_task(_send())
+    except RuntimeError:
+        asyncio.run(_send())
     except Exception:
         logger.exception("Telegram send unexpected error")
 
@@ -296,5 +307,6 @@ def process_update(payload: Dict[str, Any]) -> None:
         reset_session(str(chat))
     except Exception:
         logging.exception("telegram update failed")
+
 
 
