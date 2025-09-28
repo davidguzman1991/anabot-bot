@@ -251,6 +251,8 @@ class Hooks:
         birth_date = (birth_date or "").strip() or None
         phone_ec = (phone_ec or "").strip() or None
         email = (email or "").strip() or None
+        if email and email.lower() in {"ninguno", "ninguna", "no tengo", "omit", "0"}:
+            email = None
         platform = (platform or "").strip().lower()
         user_id = (user_id or "").strip() or None
         wa_user_id = user_id if platform == "wa" else None
@@ -397,12 +399,12 @@ class Hooks:
             INSERT INTO appointments (patient_dni, site, starts_at, status, reminder_channel)
             VALUES (%s, %s, %s, 'CONFIRMED', %s)
             RETURNING id
-            """
+            """,
             (dni, site, start_utc, reminder_choice),
             fetch="one",
         )
         appointment_id = row.get("id") if row else None
-        if appointment_id:
+        if appointment_id:\r\n            agenda["reminder"] = reminder_choice\r\n            agenda["display"] = agenda.get("display", slot_label)
             agenda["appointment"] = {
                 "id": appointment_id,
                 "site": site,
@@ -434,8 +436,7 @@ class Hooks:
             fetch="one",
         )
         appointment_id = row.get("id") if row else None
-        if appointment_id:
-            agenda["appointment"] = {
+        if appointment_id:\r\n            agenda["reminder"] = agenda.get("reminder", "wa")\r\n            agenda["display"] = local_dt.strftime("%d-%m-%Y %H:%M")\r\n            agenda["appointment"] = {
                 "id": appointment_id,
                 "site": "MIL",
                 "site_label": _site_label("MIL"),
@@ -443,7 +444,6 @@ class Hooks:
                 "status": "PENDING",
             }
         return appointment_id
-
     def appointments_upcoming_by_dni(self, dni: str, *, ctx: Dict[str, Any]) -> bool:
         dni = (dni or "").strip()
         ctx.setdefault("agenda", {})["dni"] = dni
@@ -517,6 +517,7 @@ class Hooks:
             agenda["date"] = local_dt.strftime("%d-%m-%Y")
             agenda["time"] = local_dt.strftime("%H:%M")
             agenda["selected_slot"] = local_dt.strftime("%d-%m-%Y %H:%M")
+            agenda["display"] = local_dt.strftime("%d-%m-%Y %H:%M")
         return bool(updated)
 
     def appointments_cancel(self, appointment_id: int, *, ctx: Dict[str, Any]) -> bool:
@@ -538,5 +539,15 @@ class Hooks:
         )
         ctx.setdefault("appointments", {}).setdefault("target", {})["reminder"] = reminder
         return True
+
+
+
+
+
+
+
+
+
+
 
 

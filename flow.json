@@ -207,7 +207,7 @@
     {
       "id": "AGENDA_GYE_RESUMEN",
       "type": "choice",
-      "text": "Resumen de tu cita:\n\nFecha y hora: {agenda.selected_slot}\nSede: {agenda.site_label}\nPaciente: {agenda.patient.summary}\n\nConfirmo que mis datos son correctos y autorizo su uso para agendar y recordarme mi atencion medica por WhatsApp/correo. Este canal no reemplaza una emergencia (911).",
+      "text": "Resumen de tu cita:\n\nFecha y hora: {agenda.display}\nSede: {agenda.site_label}\nPaciente: {agenda.patient.summary}\n\nConfirmo que mis datos son correctos y autorizo su uso para agendar y recordarme mi atencion medica por WhatsApp/correo. Este canal no reemplaza una emergencia (911).",
       "on_enter_hooks": [
         {"hook": "agenda.store_slot", "args": ["{agenda.selected_slot}"]}
       ],
@@ -468,7 +468,7 @@
     {
       "id": "REA_RES_CONFIRM",
       "type": "choice",
-      "text": "Confirmas reagendar tu cita a {agenda.selected_slot} en {agenda.site_label}?",
+      "text": "Confirmas reagendar tu cita a {agenda.display} en {agenda.site_label}?",
       "on_enter_hooks": [
         {"hook": "agenda.store_slot", "args": ["{agenda.selected_slot}"]}
       ],
@@ -547,3 +547,5 @@
     }
   ]
 }
+
+

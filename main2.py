@@ -8,12 +8,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 import httpx
-<<<<<<< Updated upstream
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response, Query
-=======
 import psycopg2
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request, Response
->>>>>>> Stashed changes
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
@@ -42,7 +38,7 @@ FLOW_PATH = Path(__file__).with_name("flow.json")
 SESSION_STORE = FlowSessionStore()
 FLOW_ENGINE: FlowEngine | None = None
 SCHEMA_READY = False
-FOOTER_TEXT = "\n\n0 Hablar con humano · 1/9 Inicio / Atrás"
+FOOTER_TEXT = "\n\n0 Hablar con humano - 1/9 Inicio / Atras"
 
 app = FastAPI(title="AnaBot", version="1.0.0")
 app.add_middleware(
@@ -129,9 +125,8 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
 
     if clean_text == "0":
         engine.hooks.handoff_to_human(platform=channel, user_id=str(user_id), message=user_text, ctx={})
-        return _append_footer("Te conecto con un asesor humano y compartiré tu mensaje.")
+        return _append_footer("Te conecto con un asesor humano y compartire tu mensaje.")
 
-    # Prime context with metadata before delegating to the flow engine
     state = SESSION_STORE.get(session_id)
     ctx = state.setdefault("ctx", {})
     meta = ctx.setdefault("meta", {})
@@ -163,116 +158,6 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     return _append_footer(message)
 
 
-<<<<<<< Updated upstream
-
-WA_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
-WA_PHONE_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
-WA_VERIFY = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
-WA_MSG_URL = "https://graph.facebook.com/v20.0/{phone_id}/messages"
-
-
-async def wa_send_text(to_number: str, text: str):
-    if not (WA_TOKEN and WA_PHONE_ID):
-        logger.error("WhatsApp disabled: missing env vars.")
-        return
-    url = WA_MSG_URL.format(phone_id=WA_PHONE_ID)
-    headers = {
-        "Authorization": f"Bearer {WA_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to_number,
-        "type": "text",
-        "text": {"body": text},
-    }
-    async with httpx.AsyncClient(timeout=20) as client:
-        try:
-            resp = await client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            logger.error(
-                "WhatsApp send error: %s %s",
-                exc.response.status_code if exc.response else "?",
-                exc.response.text if exc.response else exc,
-            )
-        except Exception:
-            logger.exception("WhatsApp send unexpected error")
-
-
-@app.get("/webhook/whatsapp")
-async def wa_verify(
-    mode: str | None = Query(None, alias="hub.mode"),
-    challenge: str | None = Query(None, alias="hub.challenge"),
-    token: str | None = Query(None, alias="hub.verify_token"),
-    mode2: str | None = Query(None, alias="mode"),
-    challenge2: str | None = Query(None, alias="challenge"),
-    token2: str | None = Query(None, alias="token"),
-):
-    m = (mode or mode2 or "").strip()
-    t = (token or token2 or "").strip()
-    c = (challenge or challenge2 or "")
-    if m == "subscribe" and t == (WA_VERIFY or "").strip():
-        return int(c) if c.isdigit() else (c or "")
-    raise HTTPException(status_code=403, detail="Verification failed")
-
-
-@app.post("/webhook/whatsapp")
-async def wa_webhook(request: Request):
-    body = await request.json()
-    try:
-        entry = (body.get("entry") or [{}])[0]
-        changes = (entry.get("changes") or [{}])[0]
-        value = changes.get("value") or {}
-        messages = value.get("messages") or []
-        statuses = value.get("statuses") or []
-
-        if messages:
-            for m in messages:
-                from_ = m.get("from")
-                msg_type = m.get("type")
-                if not from_:
-                    continue
-                if msg_type == "text":
-                    text_msg = m["text"].get("body", "")
-                elif msg_type == "reaction":
-                    text_msg = f"Reacción: {m['reaction'].get('emoji','')}"
-                else:
-                    text_msg = f"Tipo {msg_type} recibido."
-                await wa_send_text(from_, f"Ana 🤖 te leyó: {text_msg}")
-
-        if statuses:
-            logger.info("WA statuses: %s", json.dumps(statuses))
-
-    except Exception as exc:
-        logger.exception("WhatsApp parse/send error: %s", exc)
-    return {"ok": True}
-
-
-ConversationState = Dict[str, Any]
-SESSIONS: Dict[str, ConversationState] = {}
-
-
-def norm(txt: str) -> str:
-    txt = txt or ""
-    txt = txt.lower().strip()
-    txt = unicodedata.normalize("NFD", txt)
-    return "".join(c for c in txt if unicodedata.category(c) != "Mn")
-
-
-def reset_session(chat_id: str) -> ConversationState:
-    state = {"stage": "ask_dni", "data": {}}
-    SESSIONS[chat_id] = state
-    return state
-
-
-def send_message(chat_id: int, text: str):
-    async def _send():
-        async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.post(
-                f"{TELEGRAM_API}/sendMessage",
-                json={"chat_id": chat_id, "text": text},
-=======
 async def tg_send_text(chat_id: str, text: str) -> None:
     async with httpx.AsyncClient(timeout=20) as client:
         resp = await client.post(
@@ -286,7 +171,6 @@ async def tg_send_text(chat_id: str, text: str) -> None:
                 "Telegram send error: %s %s",
                 exc.response.status_code if exc.response else "?",
                 exc.response.text if exc.response else exc,
->>>>>>> Stashed changes
             )
 
 
@@ -355,8 +239,6 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                 user_text = message["text"].get("body", "")
             elif msg_type == "reaction":
                 user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
-            else:
-                user_text = ""
             preview = user_text.replace("\n", " ")[:120]
             logger.info("WA incoming user=%s len=%s preview=%s", from_number, len(user_text), preview)
             response = await handle_text(user_text, platform="whatsapp", user_id=from_number)
