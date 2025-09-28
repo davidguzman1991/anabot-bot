@@ -404,7 +404,9 @@ class Hooks:
             fetch="one",
         )
         appointment_id = row.get("id") if row else None
-        if appointment_id:\r\n            agenda["reminder"] = reminder_choice\r\n            agenda["display"] = agenda.get("display", slot_label)
+        if appointment_id:
+            agenda["reminder"] = reminder_choice
+            agenda["display"] = agenda.get("display", slot_label)
             agenda["appointment"] = {
                 "id": appointment_id,
                 "site": site,
@@ -436,7 +438,10 @@ class Hooks:
             fetch="one",
         )
         appointment_id = row.get("id") if row else None
-        if appointment_id:\r\n            agenda["reminder"] = agenda.get("reminder", "wa")\r\n            agenda["display"] = local_dt.strftime("%d-%m-%Y %H:%M")\r\n            agenda["appointment"] = {
+        if appointment_id:
+            agenda["reminder"] = agenda.get("reminder", "wa")
+            agenda["display"] = local_dt.strftime("%d-%m-%Y %H:%M")
+            agenda["appointment"] = {
                 "id": appointment_id,
                 "site": "MIL",
                 "site_label": _site_label("MIL"),
