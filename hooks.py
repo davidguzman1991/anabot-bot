@@ -1,40 +1,53 @@
-# hooks.py
-# Lógica de negocio para el bot "Ana" con persistencia en PostgreSQL.
-# Python 3.10+, requiere psycopg2-binary. Usa TZ America/Guayaquil y guarda en BD en UTC.
+"""Business hooks for AnaBot flow v6."""
 
 from __future__ import annotations
-import os
+
 import logging
 import unicodedata
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple, Optional
-from datetime import datetime, date, time, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date, datetime, time, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from zoneinfo import ZoneInfo
 
-# ---------------------------
-# Configuración global
-# ---------------------------
-TZ = ZoneInfo("America/Guayaquil")
-DATABASE_URL = os.getenv("DATABASE_URL")
+from config import get_settings
 
 logger = logging.getLogger("hooks")
 if not logger.handlers:
-    _h = logging.StreamHandler()
-    _h.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
-    logger.addHandler(_h)
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+    logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-# Red flags (texto normalizado sin acentos)
-RED_FLAGS = [
-    "dolor en el pecho", "dificultad para respirar", "disnea", "ahogo",
-    "fiebre alta", "desmayo", "desvanecimiento", "confusion",
-    "vision borrosa", "hipoglucemia", "sudor frio", "dolor toracico"
+_SETTINGS = get_settings()
+_DATABASE_URL = _SETTINGS.DATABASE_URL
+
+TZ_LOCAL = ZoneInfo("America/Guayaquil")
+TZ_UTC = ZoneInfo("UTC")
+SLOT_MINUTES_FALLBACK = 45
+GAP_MINUTES_FALLBACK = 15
+
+SITE_LABELS = {
+    "GYE": "Guayaquil",
+    "MIL": "Milagro",
+}
+
+RED_FLAG_TERMS = [
+    "dolor en el pecho",
+    "dificultad para respirar",
+    "disnea",
+    "ahogo",
+    "fiebre alta",
+    "desmayo",
+    "desvanecimiento",
+    "confusion",
+    "vision borrosa",
+    "sudor frio",
+    "hipoglucemia",
 ]
 
-# Jornadas Guayaquil: L-V 09-12 y 16-20; Sáb 09-16; Dom sin atención
 GYE_WINDOWS: Dict[int, List[Tuple[time, time]]] = {
     0: [(time(9, 0), time(12, 0)), (time(16, 0), time(20, 0))],
     1: [(time(9, 0), time(12, 0)), (time(16, 0), time(20, 0))],
@@ -42,429 +55,488 @@ GYE_WINDOWS: Dict[int, List[Tuple[time, time]]] = {
     3: [(time(9, 0), time(12, 0)), (time(16, 0), time(20, 0))],
     4: [(time(9, 0), time(12, 0)), (time(16, 0), time(20, 0))],
     5: [(time(9, 0), time(16, 0))],
-    6: []
+    6: [],
 }
 
-# ---------------------------
-# Utilidades
-# ---------------------------
-def _now() -> datetime:
-    return datetime.now(tz=TZ)
 
-def _normalize_text(s: str) -> str:
-    s = s or ""
-    s = s.lower()
-    s = "".join(ch for ch in unicodedata.normalize("NFD", s) if unicodedata.category(ch) != "Mn")
-    return s
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-def _round_to_15(dt_obj: datetime) -> datetime:
-    m = (dt_obj.minute // 15) * 15
-    return dt_obj.replace(minute=m, second=0, microsecond=0)
+def _normalize(text: str) -> str:
+    text = text or ""
+    text = text.lower()
+    normalized = unicodedata.normalize("NFD", text)
+    return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
 
-def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
-    return not (a_end <= b_start or b_end <= a_start)
 
-def _expand_by_gap(start: datetime, end: datetime, gap_min: int) -> Tuple[datetime, datetime]:
-    gap = timedelta(minutes=gap_min)
-    return start - gap, end + gap
+def _conn():
+    if not _DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is required")
+    return psycopg2.connect(_DATABASE_URL)
 
-def _parse_dmy(fecha_dmy: str) -> date:
-    return datetime.strptime(fecha_dmy, "%d-%m-%Y").date()
 
-def _parse_dmy_hm(fecha_dmy: str, hora_hm: str) -> datetime:
-    return datetime.strptime(f"{fecha_dmy} {hora_hm}", "%d-%m-%Y %H:%M").replace(tzinfo=TZ)
+def _now_local() -> datetime:
+    return datetime.now(tz=TZ_LOCAL)
 
-def _to_utc(dt_local: datetime) -> datetime:
-    if dt_local.tzinfo is None:
-        dt_local = dt_local.replace(tzinfo=TZ)
-    return dt_local.astimezone(ZoneInfo("UTC"))
 
-def _from_utc_to_local(dt_utc: datetime) -> datetime:
-    if dt_utc.tzinfo is None:
-        dt_utc = dt_utc.replace(tzinfo=ZoneInfo("UTC"))
-    return dt_utc.astimezone(TZ)
+def _parse_date(date_str: str) -> date:
+    return datetime.strptime(date_str, "%d-%m-%Y").date()
 
-# ---------------------------
-# Acceso a base de datos
-# ---------------------------
-def db_conn():
-    if not DATABASE_URL:
-        raise RuntimeError("DATABASE_URL no configurada")
-    # Railway/Neon suelen requerir sslmode=require ya en la URL
-    return psycopg2.connect(DATABASE_URL)
 
-def db_query(sql: str, params: Tuple = (), fetch: str = "all"):
-    with db_conn() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(sql, params)
-            if fetch == "one":
-                return cur.fetchone()
-            if fetch == "all":
-                return cur.fetchall()
-            return None
+def _parse_datetime_local(label: str) -> datetime:
+    return datetime.strptime(label, "%d-%m-%Y %H:%M").replace(tzinfo=TZ_LOCAL)
 
-# ---------------------------
-# Slots / disponibilidad
-# ---------------------------
-def get_existing_appointments_day(sede: str, day: date) -> List[Tuple[datetime, datetime]]:
-    """
-    Devuelve lista de tuplas (inicio_local, fin_local) para la sede y fecha dadas.
-    """
-    rows = db_query(
-        """
-        SELECT (inicio AT TIME ZONE 'UTC') AS s_utc,
-               (fin    AT TIME ZONE 'UTC') AS e_utc
-        FROM appointments
-        WHERE sede=%s
-          AND date((inicio AT TIME ZONE 'UTC') AT TIME ZONE %s) = %s
-          AND estado IN ('confirmada','pendiente')
-        """,
-        (sede, str(TZ), day),
-        fetch="all"
-    )
-    out: List[Tuple[datetime, datetime]] = []
-    for r in rows:
-        s_local = _from_utc_to_local(r["s_utc"])
-        e_local = _from_utc_to_local(r["e_utc"])
-        out.append((s_local, e_local))
-    return out
 
-def free_slots_for_day_gye(d: date, dur_min: int, gap_min: int, max_slots: int, min_lead_hours: int = 2) -> List[Dict[str, str]]:
-    windows = GYE_WINDOWS.get(d.weekday(), [])
-    existing = get_existing_appointments_day("Guayaquil", d)
-    out: List[Dict[str, str]] = []
-    now = _now()
+def _local_bounds(day: date) -> Tuple[datetime, datetime]:
+    start = datetime.combine(day, time.min).replace(tzinfo=TZ_LOCAL)
+    end = datetime.combine(day, time.max).replace(tzinfo=TZ_LOCAL)
+    return start.astimezone(TZ_UTC), (end + timedelta(seconds=1)).astimezone(TZ_UTC)
 
-    for w_start, w_end in windows:
-        cur = _round_to_15(datetime.combine(d, w_start).replace(tzinfo=TZ))
-        last = datetime.combine(d, w_end).replace(tzinfo=TZ) - timedelta(minutes=dur_min)
-        while cur <= last and len(out) < max_slots:
-            cand_start = cur
-            cand_end = cur + timedelta(minutes=dur_min)
 
-            # margen mínimo 2h
-            if cand_start < now + timedelta(hours=min_lead_hours):
-                cur += timedelta(minutes=15)
-                continue
+def _slot_conflicts(candidate: datetime, existing: List[datetime], slot_minutes: int, gap_minutes: int) -> bool:
+    span = timedelta(minutes=slot_minutes)
+    gap = timedelta(minutes=gap_minutes)
+    cand_start = candidate
+    cand_end = candidate + span
+    start_buffer = cand_start - gap
+    end_buffer = cand_end + gap
+    for booked in existing:
+        booked_start = booked
+        booked_end = booked + span
+        booked_start_buffer = booked_start - gap
+        booked_end_buffer = booked_end + gap
+        if not (end_buffer <= booked_start_buffer or booked_end_buffer <= start_buffer):
+            return True
+    return False
 
-            # evitar choques (incluye gap)
-            gs, ge = _expand_by_gap(cand_start, cand_end, gap_min)
-            conflict = False
-            for (s, e) in existing:
-                if _overlaps(gs, ge, s, e):
-                    conflict = True
-                    break
-            if conflict:
-                cur += timedelta(minutes=15)
-                continue
 
-            hm = cand_start.strftime("%H:%M")
-            idx = len(out) + 1
-            out.append({"key": str(idx), "label": hm, "value": hm})
-            cur += timedelta(minutes=15)
+def _generate_candidates(day: date, slot_minutes: int, gap_minutes: int) -> List[datetime]:
+    windows = GYE_WINDOWS.get(day.weekday(), [])
+    candidates: List[datetime] = []
+    span = timedelta(minutes=slot_minutes)
+    step = timedelta(minutes=slot_minutes + gap_minutes)
+    for start_time, end_time in windows:
+        current = datetime.combine(day, start_time).replace(tzinfo=TZ_LOCAL)
+        window_end = datetime.combine(day, end_time).replace(tzinfo=TZ_LOCAL)
+        while current + span <= window_end:
+            candidates.append(current)
+            current += step
+    return candidates
 
-        if len(out) >= max_slots:
-            break
-    return out
 
-# ---------------------------
-# Proxy DB (para scheduler/main)
-# ---------------------------
-class PatientsMap:
-    def get(self, cedula: str, default=None):
-        row = db_query("SELECT cedula, nombres, apellidos, telefono, email FROM patients WHERE cedula=%s",
-                       (cedula,), fetch="one")
-        if not row:
-            return default
-        return dict(row)
+def _site_label(code: str) -> str:
+    return SITE_LABELS.get((code or "").upper(), code)
 
-class AppointmentsIterable:
-    def __iter__(self):
-        rows = db_query(
-            """
-            SELECT id, cedula, sede,
-                   (inicio AT TIME ZONE 'UTC') AS inicio_utc,
-                   (fin    AT TIME ZONE 'UTC') AS fin_utc,
-                   estado
-            FROM appointments
-            WHERE estado IN ('confirmada','pendiente')
-              AND inicio >= now() - interval '1 hour'
-              AND inicio <= now() + interval '7 day'
-            ORDER BY inicio ASC
-            """,
-            fetch="all"
-        )
-        for r in rows:
-            start = _from_utc_to_local(r["inicio_utc"])
-            end   = _from_utc_to_local(r["fin_utc"])
-            yield {"id": r["id"], "cedula": r["cedula"], "sede": r["sede"], "inicio": start, "fin": end, "estado": r["estado"]}
 
-DB: Dict[str, Any] = {
-    "patients": PatientsMap(),
-    "appointments": AppointmentsIterable(),
-}
+# ---------------------------------------------------------------------------
+# Hooks implementation
+# ---------------------------------------------------------------------------
 
-# ---------------------------
-# Clase principal de hooks
-# ---------------------------
 @dataclass
 class Hooks:
-    globals_cfg: Dict[str, Any]
+    globals_cfg: Optional[Dict[str, Any]] = None
 
-    def __post_init__(self):
-        self.rules = self.globals_cfg.get("rules", {}) if self.globals_cfg else {}
-        self.dur = int(self.rules.get("slot_duration_minutes", 45))
-        self.gap = int(self.rules.get("gap_after_slot_minutes", 15))
+    def __post_init__(self) -> None:
+        rules = (self.globals_cfg or {}).get("rules", {})
+        self.slot_minutes = int(rules.get("slot_duration_minutes", SLOT_MINUTES_FALLBACK))
+        self.gap_minutes = int(rules.get("gap_after_slot_minutes", GAP_MINUTES_FALLBACK))
 
-    # ------------ Riesgo / red flags ------------
-    def risk_red_flag_scan(self, ctx: Dict[str, Any], *args) -> bool:
-        text = _normalize_text(ctx.get("last_text", ""))
-        found = any(term in text for term in RED_FLAGS)
+    # ---------- Dispatcher ----------
+    def call(self, name: str, *args, ctx: Optional[Dict[str, Any]] = None) -> Any:
+        ctx = ctx or {}
+        method_name = name.replace(".", "_")
+        method = getattr(self, method_name, None)
+        if not method:
+            logger.warning("Hook %s is not implemented", name)
+            return None
+        try:
+            return method(*args, ctx=ctx)
+        except Exception:  # pragma: no cover
+            logger.exception("Hook %s failed", name)
+            return None
+
+    # ---------- Core DB helpers ----------
+    def _fetch_one(self, sql: str, params: Tuple[Any, ...]) -> Optional[Dict[str, Any]]:
+        with _conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, params)
+                return cur.fetchone()
+
+    def _fetch_all(self, sql: str, params: Tuple[Any, ...]) -> List[Dict[str, Any]]:
+        with _conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, params)
+                return cur.fetchall()
+
+    def _execute(self, sql: str, params: Tuple[Any, ...], *, fetch: Optional[str] = None) -> Any:
+        with _conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, params)
+                result = None
+                if fetch == "one":
+                    result = cur.fetchone()
+                elif fetch == "all":
+                    result = cur.fetchall()
+            conn.commit()
+        return result
+
+    # ---------- General helpers ----------
+    def dates_today(self, *, ctx: Dict[str, Any]) -> str:
+        return _now_local().date().strftime("%d-%m-%Y")
+
+    def dates_tomorrow(self, *, ctx: Dict[str, Any]) -> str:
+        return (_now_local().date() + timedelta(days=1)).strftime("%d-%m-%Y")
+
+    def red_flag_detector(self, text: str, *, ctx: Dict[str, Any]) -> bool:
+        normalized = _normalize(text)
+        if not normalized:
+            return False
+        found = any(term in normalized for term in RED_FLAG_TERMS)
         if found:
-            logger.info("[RF] Red flag detectada en entrada del usuario.")
+            ctx.setdefault("flags", {})["red_flag"] = True
         return found
 
-    # ------------ Fechas helpers ------------
-    def dates_today(self, ctx: Dict[str, Any]) -> str:
-        return _now().date().strftime("%d-%m-%Y")
-
-    def dates_tomorrow(self, ctx: Dict[str, Any]) -> str:
-        return (_now().date() + timedelta(days=1)).strftime("%d-%m-%Y")
-
-    def dates_parse_and_save(self, fecha_str: str, save_key: str, ctx: Dict[str, Any]) -> bool:
-        # Valida formato
-        try:
-            _ = _parse_dmy(fecha_str)
-        except Exception:
-            return False
-        # Guarda en ctx con notación a.b.c
-        parts = save_key.split(".")
-        cur = ctx
-        for i, p in enumerate(parts):
-            if i == len(parts) - 1:
-                cur[p] = fecha_str
-            else:
-                cur = cur.setdefault(p, {})
-        return True
-
-    # ------------ Paciente ------------
-    def db_find_patient_by_id(self, cedula: str, ctx: Dict[str, Any]):
-        return db_query("SELECT * FROM patients WHERE cedula=%s", (cedula,), fetch="one")
-
-    def db_upsert_patient_min(self, cedula: str, nombre_apellidos: str, ctx: Dict[str, Any]):
-        parts = (nombre_apellidos or "").strip().split()
-        if len(parts) >= 2:
-            apellidos = parts[-1]
-            nombres = " ".join(parts[:-1])
-        else:
-            nombres = parts[0] if parts else ""
-            apellidos = ""
-        db_query("""
-            INSERT INTO patients (cedula, nombres, apellidos)
-            VALUES (%s,%s,%s)
-            ON CONFLICT (cedula) DO UPDATE
-            SET nombres=EXCLUDED.nombres, apellidos=EXCLUDED.apellidos
-        """, (cedula, nombres, apellidos), fetch=None)
-        ctx["paciente"] = {"cedula": cedula, "nombres": nombres, "apellidos": apellidos}
-        return ctx["paciente"]
-
-    def db_update_patient_field(self, campo: str, valor: str, ctx: Dict[str, Any]) -> bool:
-        allowed = {"telefono", "email", "fnac", "nombres", "apellidos"}
-        if campo not in allowed:
-            return False
-        pac = ctx.get("paciente") or {}
-        ced = pac.get("cedula")
-        if not ced:
-            return False
-        if campo == "fnac":
-            try:
-                valor_sql = datetime.strptime(valor, "%d-%m-%Y").date()
-            except Exception:
-                return False
-        else:
-            valor_sql = valor
-        db_query(f"UPDATE patients SET {campo}=%s WHERE cedula=%s", (valor_sql, ced), fetch=None)
-        ctx.setdefault("paciente", {})[campo] = valor
-        return True
-
-    # ------------ Citas: sugerir ------------
-    def appointments_suggest_slots(self, sede: str, fecha: str, rules: Dict[str, Any], dur: int, gap: int, ctx: Dict[str, Any]):
-        d = _parse_dmy(fecha)
-        if (sede or "").lower().startswith("guaya"):
-            slots = free_slots_for_day_gye(d, dur_min=dur, gap_min=gap, max_slots=3)
-        else:
-            # Milagro es confirmación diferida por ahora: sin slots
-            slots = []
-        ctx.setdefault("cita", {})["slots"] = slots
-        return slots
-
-    def appointments_suggest_slots_for_existing(self, sede: str, fecha: str, dur: int, gap: int, ctx: Dict[str, Any]):
-        d = _parse_dmy(fecha)
-        if (sede or "").lower().startswith("guaya"):
-            slots = free_slots_for_day_gye(d, dur_min=dur, gap_min=gap, max_slots=3)
-        else:
-            slots = []
-        ctx.setdefault("cita", {})["slots"] = slots
-        return slots
-
-    # ------------ Citas: reservar / prioritaria ------------
-    def _has_conflict(self, sede: str, start: datetime, end: datetime, gap: int) -> bool:
-        rows = db_query(
+    # ---------- Handoff ----------
+    def handoff_to_human(self, platform: str, user_id: str, message: str, *, ctx: Dict[str, Any]) -> bool:
+        payload = (platform or "").strip(), (user_id or "").strip(), (message or "").strip()
+        self._execute(
             """
-            SELECT (inicio AT TIME ZONE 'UTC') AS s_utc,
-                   (fin    AT TIME ZONE 'UTC') AS e_utc
-            FROM appointments
-            WHERE sede=%s
-              AND date((inicio AT TIME ZONE 'UTC') AT TIME ZONE %s) = %s
-              AND estado IN ('confirmada','pendiente')
-            """, (sede, str(TZ), start.date()), fetch="all"
+            INSERT INTO contact_requests (platform, user_key, raw_text)
+            VALUES (%s, %s, %s)
+            """,
+            payload,
         )
-        gs, ge = _expand_by_gap(start, end, gap)
-        for r in rows:
-            s_l = _from_utc_to_local(r["s_utc"])
-            e_l = _from_utc_to_local(r["e_utc"])
-            if _overlaps(gs, ge, s_l, e_l):
-                return True
+        ctx.setdefault("handoff", {})["requested"] = True
+        logger.info("handoff requested platform=%s user=%s", platform, user_id)
+        return True
+
+    # ---------- Patients ----------
+    def patient_lookup(self, dni: str, *, ctx: Dict[str, Any]) -> bool:
+        dni = (dni or "").strip()
+        ctx.setdefault("agenda", {})["dni"] = dni
+        if not dni:
+            ctx["agenda"]["patient"] = None
+            return False
+        row = self._fetch_one(
+            """
+            SELECT dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id
+            FROM patients
+            WHERE dni=%s
+            """,
+            (dni,),
+        )
+        if row:
+            patient = self._patient_from_row(row)
+            patient["summary"] = self._patient_summary(patient)
+            ctx["agenda"]["patient"] = patient
+            return True
+        ctx["agenda"]["patient"] = None
         return False
 
-    def appointments_reserve_if_free(self, sede: str, fecha: str, hora: str, dur: int, gap: int, ctx: Dict[str, Any]):
-        cedula = (ctx.get("paciente") or {}).get("cedula")
-        if not cedula:
-            return None
-        start = _parse_dmy_hm(fecha, hora)
-        end = start + timedelta(minutes=dur)
-        if self._has_conflict(sede, start, end, gap):
-            logger.info("[APPT] Conflicto al reservar.")
-            return None
-        row = db_query(
-            "INSERT INTO appointments (cedula, sede, inicio, fin, estado) VALUES (%s,%s,%s,%s,'confirmada') RETURNING id",
-            (cedula, sede, _to_utc(start), _to_utc(end)),
-            fetch="one"
-        )
-        apt_id = row["id"]
-        ctx["appointment"] = {"id": apt_id, "sede": sede, "inicio": start.isoformat()}
-        logger.info(f"[APPT] Reservada cita id={apt_id} {start.isoformat()} {sede} para {cedula}")
-        return apt_id
+    def patient_create_or_update(
+        self,
+        dni: str,
+        full_name: str,
+        birth_date: Optional[str],
+        phone_ec: Optional[str],
+        email: Optional[str],
+        platform: Optional[str],
+        user_id: Optional[str],
+        *,
+        ctx: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        dni = (dni or "").strip()
+        full_name = (full_name or "").strip()
+        birth_date = (birth_date or "").strip() or None
+        phone_ec = (phone_ec or "").strip() or None
+        email = (email or "").strip() or None
+        platform = (platform or "").strip().lower()
+        user_id = (user_id or "").strip() or None
+        wa_user_id = user_id if platform == "wa" else None
+        tg_user_id = user_id if platform == "tg" else None
 
-    def appointments_next_slots(self, sede: str, count: int, within_hours: int, ctx: Dict[str, Any]):
-        out: List[Dict[str, str]] = []
-        now = _now()
-        deadline = now + timedelta(hours=within_hours)
-        cursor = now.date()
-        while cursor <= deadline.date() and len(out) < count:
-            day_slots = free_slots_for_day_gye(cursor, dur_min=self.dur, gap_min=self.gap, max_slots=count - len(out))
-            for s in day_slots:
-                hm = s["value"]
-                start_dt = datetime.combine(cursor, datetime.strptime(hm, "%H:%M").time()).replace(tzinfo=TZ)
-                if now <= start_dt <= deadline:
-                    idx = len(out) + 1
-                    out.append({"key": str(idx), "label": start_dt.strftime("%d-%m-%Y %H:%M"), "value": start_dt.strftime("%d-%m-%Y %H:%M")})
-            cursor += timedelta(days=1)
-        ctx.setdefault("cita", {})["slots"] = out
+        row = self._execute(
+            """
+            INSERT INTO patients (dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (dni) DO UPDATE SET
+                full_name = EXCLUDED.full_name,
+                birth_date = COALESCE(EXCLUDED.birth_date, patients.birth_date),
+                phone_ec = COALESCE(EXCLUDED.phone_ec, patients.phone_ec),
+                email = COALESCE(EXCLUDED.email, patients.email),
+                wa_user_id = COALESCE(EXCLUDED.wa_user_id, patients.wa_user_id),
+                tg_user_id = COALESCE(EXCLUDED.tg_user_id, patients.tg_user_id)
+            RETURNING dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id, created_at
+            """,
+            (dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id),
+            fetch="one",
+        )
+        patient = self._patient_from_row(row) if row else None
+        if patient is not None:
+            patient["summary"] = self._patient_summary(patient)
+        ctx.setdefault("agenda", {})["patient"] = patient
+        return patient or {}
+
+    def _patient_from_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        if not row:
+            return {}
+        return {
+            "dni": row.get("dni"),
+            "full_name": row.get("full_name"),
+            "birth_date": row.get("birth_date"),
+            "phone_ec": row.get("phone_ec"),
+            "email": row.get("email"),
+            "wa_user_id": row.get("wa_user_id"),
+            "tg_user_id": row.get("tg_user_id"),
+        }
+
+    def _patient_summary(self, patient: Dict[str, Any]) -> str:
+        parts: List[str] = []
+        name = patient.get("full_name") or "Sin nombre"
+        parts.append(name)
+        phone = patient.get("phone_ec")
+        if phone:
+            parts.append(f"Tel: {phone}")
+        email = patient.get("email")
+        if email:
+            parts.append(f"Email: {email}")
+        return " | ".join(parts)
+
+    # ---------- Agenda: slots ----------
+    def appointments_list_slots(self, site: str, date_str: str, *, ctx: Dict[str, Any]) -> List[Dict[str, str]]:
+        site = (site or "").upper()
+        ctx.setdefault("agenda", {})["site"] = site
+        ctx["agenda"]["site_label"] = _site_label(site)
+        try:
+            target_date = _parse_date(date_str)
+        except ValueError:
+            ctx["agenda"]["slots"] = []
+            return []
+        if site != "GYE":
+            ctx["agenda"]["slots"] = []
+            return []
+        existing = self._existing_local_slots(site, target_date)
+        candidates = []
+        now_local = _now_local()
+        for candidate in _generate_candidates(target_date, self.slot_minutes, self.gap_minutes):
+            if candidate.date() == now_local.date() and candidate <= now_local:
+                continue
+            if _slot_conflicts(candidate, existing, self.slot_minutes, self.gap_minutes):
+                continue
+            candidates.append(candidate)
+        slots: List[Dict[str, str]] = []
+        for idx, option in enumerate(candidates, start=1):
+            slots.append(
+                {
+                    "key": str(idx),
+                    "label": option.strftime("%d-%m-%Y %H:%M"),
+                    "value": option.strftime("%d-%m-%Y %H:%M"),
+                }
+            )
+        ctx["agenda"]["slots"] = slots
+        return slots
+
+    def agenda_store_slot(self, slot_label: str, *, ctx: Dict[str, Any]) -> bool:
+        agenda = ctx.setdefault("agenda", {})
+        try:
+            local_dt = _parse_datetime_local(slot_label)
+        except ValueError:
+            agenda.pop("selected_slot", None)
+            return False
+        agenda["selected_slot"] = slot_label
+        agenda["date"] = local_dt.strftime("%d-%m-%Y")
+        agenda["time"] = local_dt.strftime("%H:%M")
+        agenda["display"] = local_dt.strftime("%d-%m-%Y %H:%M")
+        agenda["slot_dt"] = local_dt.isoformat()
+        return True
+
+    def _existing_local_slots(self, site: str, day: date) -> List[datetime]:
+        start_utc, end_utc = _local_bounds(day)
+        rows = self._fetch_all(
+            """
+            SELECT starts_at
+            FROM appointments
+            WHERE site=%s
+              AND status IN ('PENDING','CONFIRMED')
+              AND starts_at >= %s AND starts_at < %s
+            """,
+            (site, start_utc, end_utc),
+        )
+        out: List[datetime] = []
+        for row in rows:
+            dt = row.get("starts_at")
+            if isinstance(dt, datetime):
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=TZ_UTC)
+                out.append(dt.astimezone(TZ_LOCAL))
         return out
 
-    def appointments_reserve_priority(self, sede: str, fechor: str, dur: int, gap: int, ctx: Dict[str, Any]):
-        cedula = (ctx.get("paciente") or {}).get("cedula")
-        if not cedula:
+    # ---------- Bookings ----------
+    def appointments_book_confirmed(self, reminder: str, *, ctx: Dict[str, Any]) -> Optional[int]:
+        agenda = ctx.setdefault("agenda", {})
+        patient = agenda.get("patient") or {}
+        dni = patient.get("dni") or agenda.get("dni")
+        slot_label = agenda.get("selected_slot")
+        site = agenda.get("site", "GYE")
+        if not (dni and slot_label and site):
             return None
-        # fechor = "DD-MM-YYYY HH:MM"
-        start = datetime.strptime(fechor, "%d-%m-%Y %H:%M").replace(tzinfo=TZ)
-        end = start + timedelta(minutes=dur)
-        if self._has_conflict(sede, start, end, gap):
-            logger.info("[APPT] Conflicto en reserva prioritaria.")
-            return None
-        row = db_query(
-            "INSERT INTO appointments (cedula, sede, inicio, fin, estado) VALUES (%s,%s,%s,%s,'confirmada') RETURNING id",
-            (cedula, sede, _to_utc(start), _to_utc(end)),
-            fetch="one"
-        )
-        ctx["appointment"] = {"id": row["id"], "sede": sede, "inicio": start.isoformat()}
-        logger.info(f"[APPT] Prioritaria id={row['id']} {start.isoformat()} {sede} para {cedula}")
-        return row["id"]
-
-    # ------------ Citas: listar / reagendar / cancelar ------------
-    def appointments_find_upcoming_by_id(self, cedula: str, ctx: Dict[str, Any]):
-        rows = db_query(
-            """
-            SELECT id, sede,
-                   (inicio AT TIME ZONE 'UTC') AS inicio_utc,
-                   (fin    AT TIME ZONE 'UTC') AS fin_utc,
-                   estado
-            FROM appointments
-            WHERE cedula=%s
-              AND estado IN ('confirmada','pendiente')
-              AND inicio >= now()
-            ORDER BY inicio ASC
-            """, (cedula,), fetch="all"
-        )
-        results: List[Dict[str, Any]] = []
-        for r in rows:
-            start = _from_utc_to_local(r["inicio_utc"])
-            label = f"{start.strftime('%d-%m-%Y %H:%M')} · {r['sede']}"
-            results.append({"key": str(r["id"]), "label": label, "value": {"id": r["id"], "sede": r["sede"]}})
-        ctx.setdefault("citas", {})["upcoming"] = results
-        return results
-
-    def ui_render_appointments_list(self, citas: list, ctx: Dict[str, Any]) -> bool:
-        return bool(citas)
-
-    def appointments_reschedule(self, apt_id: int, fecha: str, hora: str, dur: int, gap: int, ctx: Dict[str, Any]) -> bool:
-        new_start = _parse_dmy_hm(fecha, hora)
-        new_end = new_start + timedelta(minutes=dur)
-        sede = (ctx.get("cita", {}).get("target") or {}).get("sede", "Guayaquil")
-        if self._has_conflict(sede, new_start, new_end, gap):
-            logger.info(f"[APPT] Conflicto al reagendar id={apt_id}")
-            return False
-        db_query("UPDATE appointments SET inicio=%s, fin=%s WHERE id=%s",
-                 (_to_utc(new_start), _to_utc(new_end), int(apt_id)), fetch=None)
-        logger.info(f"[APPT] Reagendada id={apt_id} a {new_start.isoformat()} {sede}")
-        return True
-
-    def appointments_cancel(self, apt_id: int, motivo: str, ctx: Dict[str, Any]) -> bool:
-        db_query("UPDATE appointments SET estado='cancelada', motivo_cancel=%s WHERE id=%s", (motivo, int(apt_id)), fetch=None)
-        logger.info(f"[APPT] Cancelada id={apt_id} motivo='{motivo or ''}'")
-        return True
-
-    # ------------ Recordatorios (registro lógico) ------------
-    def reminders_set(self, canal: str, appointment_id: int, ctx: Dict[str, Any]) -> bool:
-        ctx.setdefault("reminders", []).append({"canal": canal, "appointment_id": appointment_id})
-        logger.info(f"[REM] Preferencia canal={canal} para appointment_id={appointment_id}")
-        return True
-
-    # ------------ Handoff / contacto con el Dr. ------------
-    def handoff_to_human(self, ctx: Dict[str, Any]) -> bool:
-        ctx["handoff"] = True
-        logger.info("[HANDOFF] Transferencia a humano solicitada.")
-        return True
-
-    def handoff_notify_doctor(self, nombre: str, telefono: str, ctx: Dict[str, Any]) -> bool:
-        # Tabla opcional para leads de contacto
+        reminder_choice = (reminder or "wa").lower()
+        if reminder_choice == "email" and not patient.get("email"):
+            reminder_choice = "wa"
         try:
-            db_query("""
-              CREATE TABLE IF NOT EXISTS contact_requests (
-                id SERIAL PRIMARY KEY,
-                nombre TEXT NOT NULL,
-                telefono TEXT NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT now()
-              )
-            """, fetch=None)
-            db_query("INSERT INTO contact_requests (nombre, telefono) VALUES (%s,%s)", (nombre, telefono), fetch=None)
-        except Exception as e:
-            logger.warning(f"[HANDOFF] No se pudo registrar contact_request: {e}")
-        logger.info(f"[HANDOFF] Paciente pide hablar con el Dr.: {nombre} / {telefono}")
-        ctx.setdefault("handoff", {})["doctor"] = {"nombre": nombre, "telefono": telefono}
+            local_dt = _parse_datetime_local(slot_label)
+        except ValueError:
+            return None
+        if site.upper() == "GYE" and _slot_conflicts(local_dt, self._existing_local_slots(site, local_dt.date()), self.slot_minutes, self.gap_minutes):
+            logger.info("Slot %s already taken at %s", slot_label, site)
+            return None
+        start_utc = local_dt.astimezone(TZ_UTC)
+        row = self._execute(
+            """
+            INSERT INTO appointments (patient_dni, site, starts_at, status, reminder_channel)
+            VALUES (%s, %s, %s, 'CONFIRMED', %s)
+            RETURNING id
+            """
+            (dni, site, start_utc, reminder_choice),
+            fetch="one",
+        )
+        appointment_id = row.get("id") if row else None
+        if appointment_id:
+            agenda["appointment"] = {
+                "id": appointment_id,
+                "site": site,
+                "site_label": _site_label(site),
+                "starts_at": slot_label,
+                "reminder": reminder_choice,
+            }
+        return appointment_id
+    def appointments_register_milagro(self, date_pref: str, shift: str, *, ctx: Dict[str, Any]) -> Optional[int]:
+        agenda = ctx.setdefault("agenda", {})
+        patient = agenda.get("patient") or {}
+        dni = patient.get("dni") or agenda.get("dni")
+        if not dni:
+            return None
+        try:
+            target_date = _parse_date(date_pref)
+        except ValueError:
+            return None
+        shift = (shift or "").lower()
+        target_time = time(9, 0) if shift == "manana" else time(15, 0)
+        local_dt = datetime.combine(target_date, target_time).replace(tzinfo=TZ_LOCAL)
+        row = self._execute(
+            """
+            INSERT INTO appointments (patient_dni, site, starts_at, status, reminder_channel)
+            VALUES (%s, 'MIL', %s, 'PENDING', %s)
+            RETURNING id
+            """,
+            (dni, local_dt.astimezone(TZ_UTC), agenda.get("reminder", "wa")),
+            fetch="one",
+        )
+        appointment_id = row.get("id") if row else None
+        if appointment_id:
+            agenda["appointment"] = {
+                "id": appointment_id,
+                "site": "MIL",
+                "site_label": _site_label("MIL"),
+                "starts_at": local_dt.strftime("%d-%m-%Y %H:%M"),
+                "status": "PENDING",
+            }
+        return appointment_id
+
+    def appointments_upcoming_by_dni(self, dni: str, *, ctx: Dict[str, Any]) -> bool:
+        dni = (dni or "").strip()
+        ctx.setdefault("agenda", {})["dni"] = dni
+        if not dni:
+            ctx.setdefault("appointments", {})["upcoming"] = []
+            return False
+        rows = self._fetch_all(
+            """
+            SELECT id, site, starts_at, status, reminder_channel
+            FROM appointments
+            WHERE patient_dni=%s AND status IN ('PENDING','CONFIRMED')
+            ORDER BY starts_at ASC
+            LIMIT 5
+            """,
+            (dni,),
+        )
+        upcoming: List[Dict[str, Any]] = []
+        for row in rows:
+            starts_at = row.get("starts_at")
+            if isinstance(starts_at, datetime):
+                if starts_at.tzinfo is None:
+                    starts_at = starts_at.replace(tzinfo=TZ_UTC)
+                local_dt = starts_at.astimezone(TZ_LOCAL)
+                upcoming.append(
+                    {
+                        "id": row.get("id"),
+                        "site": row.get("site"),
+                        "site_label": _site_label(row.get("site", "")),
+                        "local_label": local_dt.strftime("%d-%m-%Y %H:%M"),
+                        "date": local_dt.strftime("%d-%m-%Y"),
+                        "time": local_dt.strftime("%H:%M"),
+                        "status": row.get("status"),
+                        "reminder": row.get("reminder_channel"),
+                    }
+                )
+        ctx.setdefault("appointments", {})["upcoming"] = upcoming
+        if upcoming:
+            ctx["appointments"]["target"] = upcoming[0]
+            agenda = ctx.setdefault("agenda", {})
+            agenda["site"] = upcoming[0]["site"]
+            agenda["site_label"] = upcoming[0]["site_label"]
+            agenda["date"] = upcoming[0]["date"]
+            agenda["time"] = upcoming[0]["time"]
+            agenda["selected_slot"] = upcoming[0]["local_label"]
+        return bool(upcoming)
+
+    def appointments_reschedule(self, appointment_id: int, new_slot: str, *, ctx: Dict[str, Any]) -> bool:
+        if not appointment_id:
+            return False
+        try:
+            local_dt = _parse_datetime_local(new_slot)
+        except ValueError:
+            return False
+        site = (ctx.get("agenda", {}).get("site") or "GYE").upper()
+        if site == "GYE" and _slot_conflicts(local_dt, self._existing_local_slots(site, local_dt.date()), self.slot_minutes, self.gap_minutes):
+            logger.info("Conflict while rescheduling appointment %s", appointment_id)
+            return False
+        updated = self._execute(
+            """
+            UPDATE appointments
+            SET starts_at=%s, status='CONFIRMED'
+            WHERE id=%s
+            RETURNING id
+            """,
+            (local_dt.astimezone(TZ_UTC), appointment_id),
+            fetch="one",
+        )
+        if updated:
+            ctx.setdefault("appointments", {}).setdefault("target", {})["local_label"] = local_dt.strftime("%d-%m-%Y %H:%M")
+            agenda = ctx.setdefault("agenda", {})
+            agenda["date"] = local_dt.strftime("%d-%m-%Y")
+            agenda["time"] = local_dt.strftime("%H:%M")
+            agenda["selected_slot"] = local_dt.strftime("%d-%m-%Y %H:%M")
+        return bool(updated)
+
+    def appointments_cancel(self, appointment_id: int, *, ctx: Dict[str, Any]) -> bool:
+        if not appointment_id:
+            return False
+        self._execute(
+            "UPDATE appointments SET status='CANCELLED' WHERE id=%s",
+            (appointment_id,),
+        )
+        ctx.setdefault("appointments", {}).setdefault("target", {})["status"] = "CANCELLED"
+        return True
+
+    def appointments_set_reminder(self, appointment_id: int, reminder: str, *, ctx: Dict[str, Any]) -> bool:
+        if not appointment_id:
+            return False
+        self._execute(
+            "UPDATE appointments SET reminder_channel=%s WHERE id=%s",
+            (reminder, appointment_id),
+        )
+        ctx.setdefault("appointments", {}).setdefault("target", {})["reminder"] = reminder
         return True
 
 
-# ---------------------------
-# (Opcional) Pruebas manuales
-# ---------------------------
-# if __name__ == "__main__":
-#     hooks = Hooks(globals_cfg={"rules": {"slot_duration_minutes": 45, "gap_after_slot_minutes": 15}})
-#     ctx = {}
-#     print("Hoy:", hooks.dates_today(ctx))
-#     print("Mañana:", hooks.dates_tomorrow(ctx))
-#     # Sugerir slots:
-#     ctx["cita"] = {"sede": "Guayaquil"}
-#     slots = hooks.appointments_suggest_slots("Guayaquil", hooks.dates_tomorrow(ctx), {}, 45, 15, ctx)
-#     print("Slots:", slots)

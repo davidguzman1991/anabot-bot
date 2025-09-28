@@ -1,5 +1,5 @@
 {
-  "version": "4.0",
+  "version": "6.0",
   "globals": {
     "tz": "America/Guayaquil",
     "rules": {
@@ -7,22 +7,26 @@
       "gap_after_slot_minutes": 15
     },
     "validations": {
-      "nombre_apellidos": {
-        "regex": "^[A-Za-zÁÉÍÓÚÑáéíóúñ\\s]{3,}$",
-        "error": "Por favor ingresa nombres y apellidos válidos."
-      },
-      "cedula_pasaporte": {
-        "regex": "^([A-Za-z0-9]{7,12}|[0-9]{10})$",
-        "error": "Cédula/Pasaporte inválido."
+      "dni": {
+        "regex": "^[A-Za-z0-9]{6,20}$",
+        "error": "Usa 6-20 caracteres alfanumericos sin espacios."
       },
       "fecha_dmy": {
         "regex": "^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-(19|20)\\d\\d$",
-        "error": "Usa el formato DD-MM-AAAA."
+        "error": "Formato valido: DD-MM-AAAA."
       },
       "telefono_ec": {
-        "regex": "^(09\\d{8}|5939\\d{8})$",
-        "error": "Teléfono EC inválido (09XXXXXXXX o 5939XXXXXXXX)."
+        "regex": "^09\\d{8}$",
+        "error": "Usa un numero ecuatoriano de 10 digitos (09XXXXXXXX)."
+      },
+      "email_opcional": {
+        "regex": "^(?:[Nn]inguno|[Nn]o\\s*tengo|omit|0)?$|^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$",
+        "error": "Ingresa un correo valido o escribe 'ninguno'."
       }
+    },
+    "messages": {
+      "invalid_option": "No reconoci la opcion, intenta nuevamente.",
+      "invalid_field": "El dato no tiene el formato esperado, intentemos otra vez."
     },
     "commands": {
       "back": "1",
@@ -34,634 +38,440 @@
     {
       "id": "HOME",
       "type": "choice",
-      "text": "¡Buen día/tarde/noche! Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy? Responde con un número:",
+      "text": "!Buen {saludo}! Soy Ana, asistente del Dr. David Guzman.\n\n?En que te ayudo hoy? Escribe el numero de la opcion (ej: 2).\n\n1) Agendar cita\n2) Mas informacion de servicios medicos\n3) Precios\n4) Ubicaciones\n5) Reagendar o cancelar\n6) Portal del Paciente\n7) Contactar al Dr.",
       "options": [
-        {
-          "key": "0",
-          "label": "Hablar con el Dr. Guzmán",
-          "next": "DR_CONTACT_NOMBRE"
-        },
-        {
-          "key": "1",
-          "label": "Agendar cita",
-          "next": "AGENDAR_SEDE"
-        },
-        {
-          "key": "2",
-          "label": "Más información de servicios médicos",
-          "next": "SERVICIOS"
-        },
-        {
-          "key": "3",
-          "label": "Precios",
-          "next": "PRECIOS"
-        },
-        {
-          "key": "4",
-          "label": "Ubicaciones",
-          "next": "UBICACIONES"
-        },
-        {
-          "key": "5",
-          "label": "Reagendar o cancelar",
-          "next": "REA_CAN_ID"
-        },
-        {
-          "key": "6",
-          "label": "Portal del Paciente",
-          "next": "PORTAL"
-        },
-        {
-          "key": "7",
-          "label": "Contactar al Dr.",
-          "next": "CONTACTO"
-        }
+        {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
+        {"key": "2", "label": "Mas informacion", "next": "INFO_SERVICIOS"},
+        {"key": "3", "label": "Precios", "next": "PRECIOS"},
+        {"key": "4", "label": "Ubicaciones", "next": "UBICACIONES"},
+        {"key": "5", "label": "Reagendar o cancelar", "next": "REA_DNI"},
+        {"key": "6", "label": "Portal del Paciente", "next": "PORTAL"},
+        {"key": "7", "label": "Contactar al Dr.", "next": "CONTACTO"}
       ],
       "on_enter_hooks": [
         {
-          "hook": "risk.red_flag_scan",
-          "if_true_next": "RF"
+          "hook": "red_flag_detector",
+          "args": ["{last_text}"],
+          "if_true_next": "RED_FLAG"
         }
       ]
     },
     {
-      "id": "AGENDAR_SEDE",
+      "id": "RED_FLAG",
+      "type": "choice",
+      "text": "Gracias por compartir tu mensaje. Recuerda que si presentas dolor en el pecho, falta de aire u otra senal de alarma es importante contactar a emergencias (911) de inmediato.\n\n?Quieres que agendemos una cita prioritaria con el Dr. Guzman?",
+      "options": [
+        {"key": "1", "label": "Si, agendar cita prioritaria", "next": "AGENDA_DNI"},
+        {"key": "9", "label": "Volver al inicio", "next": "HOME"}
+      ]
+    },
+    {
+      "id": "AGENDA_DNI",
+      "type": "input",
+      "text": "Para comenzar necesito tu cedula o pasaporte (6-20 caracteres, sin espacios):",
+      "validation": "dni",
+      "save_as": "agenda.dni",
+      "hooks": [
+        {
+          "hook": "patient.lookup",
+          "args": ["{agenda.dni}"],
+          "if_true_next": "AGENDA_EXISTE_RESUMEN",
+          "if_false_next": "AGENDA_NEW_NAME"
+        }
+      ]
+    },
+    {
+      "id": "AGENDA_EXISTE_RESUMEN",
+      "type": "choice",
+      "text": "Tengo registrado: {agenda.patient.summary}.\n\n?Deseas usar estos datos para tu cita?",
+      "options": [
+        {"key": "1", "label": "Si, continuar con estos datos", "next": "AGENDA_SEDE"},
+        {"key": "2", "label": "Actualizar mis datos", "next": "AGENDA_NEW_NAME"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
+      ]
+    },
+    {
+      "id": "AGENDA_NEW_NAME",
+      "type": "input",
+      "text": "Escribe tus nombres y apellidos completos:",
+      "validation": "dni",
+      "save_as": "agenda.full_name",
+      "next": "AGENDA_NEW_BIRTHDATE"
+    },
+    {
+      "id": "AGENDA_NEW_BIRTHDATE",
+      "type": "input",
+      "text": "Fecha de nacimiento (DD-MM-AAAA):",
+      "validation": "fecha_dmy",
+      "save_as": "agenda.birth_date",
+      "next": "AGENDA_NEW_PHONE"
+    },
+    {
+      "id": "AGENDA_NEW_PHONE",
+      "type": "input",
+      "text": "Telefono de contacto (09XXXXXXXX):",
+      "validation": "telefono_ec",
+      "save_as": "agenda.phone",
+      "next": "AGENDA_NEW_EMAIL"
+    },
+    {
+      "id": "AGENDA_NEW_EMAIL",
+      "type": "input",
+      "text": "Correo (opcional). Escribe 'ninguno' si no deseas ingresarlo:",
+      "validation": "email_opcional",
+      "save_as": "agenda.email",
+      "next": "AGENDA_SAVE_PROFILE"
+    },
+    {
+      "id": "AGENDA_SAVE_PROFILE",
+      "type": "message",
+      "text": "Gracias, actualice tus datos.",
+      "hooks": [
+        {
+          "hook": "patient.create_or_update",
+          "args": ["{agenda.dni}", "{agenda.full_name}", "{agenda.birth_date}", "{agenda.phone}", "{agenda.email}", "{meta.channel}", "{meta.user_id}"]
+        }
+      ],
+      "next": "AGENDA_SEDE"
+    },
+    {
+      "id": "AGENDA_SEDE",
       "type": "choice",
       "text": "Elige la sede para tu cita:",
       "options": [
         {
           "key": "1",
-          "label": "Guayaquil (agenda directa)",
-          "next": "GYE_NOMBRE",
-          "save": {
-            "cita.sede": "Guayaquil"
-          }
+          "label": "Guayaquil (agenda inmediata)",
+          "save": {"agenda.site": "GYE", "agenda.site_label": "Guayaquil"},
+          "next": "AGENDA_GYE_FECHA_MENU"
         },
         {
           "key": "2",
-          "label": "Milagro (confirmación diferida)",
-          "next": "MIL_NOMBRE",
-          "save": {
-            "cita.sede": "Milagro"
-          }
+          "label": "Milagro (confirmacion diferida)",
+          "save": {"agenda.site": "MIL", "agenda.site_label": "Milagro"},
+          "next": "AGENDA_MIL_FECHA"
         },
-        {
-          "key": "9",
-          "label": "Inicio",
-          "next": "HOME"
-        }
+        {"key": "9", "label": "Inicio", "next": "HOME"}
       ]
     },
     {
-      "id": "GYE_NOMBRE",
-      "type": "input",
-      "text": "Por favor, escribe tus Nombres y Apellidos:",
-      "validation": "nombre_apellidos",
-      "save": "paciente.nombre_apellidos",
-      "next": "GYE_ID"
-    },
-    {
-      "id": "GYE_ID",
-      "type": "input",
-      "text": "Ingresa tu Cédula o Pasaporte:",
-      "validation": "cedula_pasaporte",
-      "save": "paciente.cedula",
-      "hooks": [
-        {
-          "hook": "db.upsert_patient_min",
-          "args": [
-            "{paciente.cedula}",
-            "{paciente.nombre_apellidos}"
-          ]
-        }
-      ],
-      "next": "GYE_FNAC"
-    },
-    {
-      "id": "GYE_FNAC",
-      "type": "input",
-      "text": "Fecha de nacimiento (DD-MM-AAAA):",
-      "validation": "fecha_dmy",
-      "save": "paciente.fnac",
-      "hooks": [
-        {
-          "hook": "db.update_patient_field",
-          "args": [
-            "fnac",
-            "{paciente.fnac}"
-          ]
-        }
-      ],
-      "next": "GYE_TEL"
-    },
-    {
-      "id": "GYE_TEL",
-      "type": "input",
-      "text": "Teléfono de contacto (EC):",
-      "validation": "telefono_ec",
-      "save": "paciente.telefono",
-      "hooks": [
-        {
-          "hook": "db.update_patient_field",
-          "args": [
-            "telefono",
-            "{paciente.telefono}"
-          ]
-        }
-      ],
-      "next": "GYE_FECHA_MENU"
-    },
-    {
-      "id": "GYE_FECHA_MENU",
+      "id": "AGENDA_GYE_FECHA_MENU",
       "type": "choice",
-      "text": "¿Cuándo deseas agendar?",
+      "text": "Selecciona la fecha para tu cita en Guayaquil:",
       "options": [
         {
           "key": "1",
-          "label": "Agendar HOY",
-          "hooks": [
-            {
-              "hook": "dates.today",
-              "save_as": "cita.fecha"
-            }
-          ],
-          "next": "GYE_HORA"
+          "label": "Hoy",
+          "hooks": [{"hook": "dates_today", "save_as": "agenda.date"}],
+          "next": "AGENDA_GYE_SLOTS"
         },
         {
           "key": "2",
-          "label": "Agendar MAÑANA",
-          "hooks": [
-            {
-              "hook": "dates.tomorrow",
-              "save_as": "cita.fecha"
-            }
-          ],
-          "next": "GYE_HORA"
+          "label": "Manana",
+          "hooks": [{"hook": "dates_tomorrow", "save_as": "agenda.date"}],
+          "next": "AGENDA_GYE_SLOTS"
         },
         {
           "key": "3",
-          "label": "Agendar FECHAS POSTERIORES",
-          "next": "GYE_FECHA_POSTERIOR"
+          "label": "Otra fecha (DD-MM-AAAA)",
+          "next": "AGENDA_GYE_FECHA_INPUT"
         },
-        {
-          "key": "4",
-          "label": "Regresar",
-          "next": "AGENDAR_SEDE"
-        }
+        {"key": "9", "label": "Inicio", "next": "HOME"}
       ]
     },
     {
-      "id": "GYE_FECHA_POSTERIOR",
+      "id": "AGENDA_GYE_FECHA_INPUT",
       "type": "input",
-      "text": "Indica la fecha (DD-MM-AAAA):",
+      "text": "Ingresa la fecha en formato DD-MM-AAAA:",
       "validation": "fecha_dmy",
-      "hooks": [
-        {
-          "hook": "dates.parse_and_save",
-          "args": [
-            "{input}",
-            "cita.fecha"
-          ]
-        }
-      ],
-      "next": "GYE_HORA"
+      "save_as": "agenda.date",
+      "next": "AGENDA_GYE_SLOTS"
     },
     {
-      "id": "GYE_HORA",
+      "id": "AGENDA_GYE_SLOTS",
       "type": "choice",
-      "text": "Selecciona una hora disponible:",
+      "text": "Horarios disponibles para {agenda.date} en Guayaquil:",
       "hooks": [
         {
-          "hook": "appointments.suggest_slots",
-          "args": [
-            "{cita.sede}",
-            "{cita.fecha}",
-            "{rules}",
-            "{rules.slot_duration_minutes}",
-            "{rules.gap_after_slot_minutes}"
-          ]
+          "hook": "appointments.list_slots",
+          "args": ["{agenda.site}", "{agenda.date}"]
         }
       ],
-      "dynamic_options_from": "cita.slots",
-      "on_select": {
-        "save_as": "cita.hora"
-      },
-      "on_select_next": "GYE_CONFIRM"
+      "dynamic_options_from": "agenda.slots",
+      "on_select": {"save_as": "agenda.selected_slot"},
+      "on_select_next": "AGENDA_GYE_RESUMEN",
+      "fallback": {
+        "message": "Por ahora no tengo horarios disponibles para esa fecha. Puedes elegir otra fecha o escribir 9 para volver al inicio."
+      }
     },
     {
-      "id": "GYE_CONFIRM",
+      "id": "AGENDA_GYE_RESUMEN",
       "type": "choice",
-      "text": "Revisa: {paciente.nombre_apellidos} · {paciente.cedula}\\nCita: {cita.fecha} {cita.hora} · {cita.sede}\\n¿Confirmamos?",
+      "text": "Resumen de tu cita:\n\nFecha y hora: {agenda.selected_slot}\nSede: {agenda.site_label}\nPaciente: {agenda.patient.summary}\n\nConfirmo que mis datos son correctos y autorizo su uso para agendar y recordarme mi atencion medica por WhatsApp/correo. Este canal no reemplaza una emergencia (911).",
+      "on_enter_hooks": [
+        {"hook": "agenda.store_slot", "args": ["{agenda.selected_slot}"]}
+      ],
       "options": [
-        {
-          "key": "1",
-          "label": "Confirmar",
-          "hooks": [
-            {
-              "hook": "appointments.reserve_if_free",
-              "args": [
-                "{cita.sede}",
-                "{cita.fecha}",
-                "{cita.hora}",
-                "{rules.slot_duration_minutes}",
-                "{rules.gap_after_slot_minutes}"
-              ]
-            }
-          ],
-          "next": "GYE_REMINDERS"
-        },
-        {
-          "key": "2",
-          "label": "Cambiar fecha/hora",
-          "next": "GYE_FECHA_MENU"
-        },
-        {
-          "key": "9",
-          "label": "Cancelar",
-          "next": "HOME"
-        }
+        {"key": "1", "label": "Confirmar", "next": "AGENDA_REMINDER"},
+        {"key": "2", "label": "Cambiar hora", "next": "AGENDA_GYE_SLOTS"},
+        {"key": "9", "label": "Cancelar", "next": "HOME"}
       ]
     },
     {
-      "id": "GYE_REMINDERS",
+      "id": "AGENDA_REMINDER",
       "type": "choice",
-      "text": "¿Cómo deseas recibir el recordatorio?",
+      "text": "?Como prefieres recibir recordatorios?",
       "options": [
         {
           "key": "1",
           "label": "WhatsApp (recomendado)",
+          "save": {"agenda.reminder": "wa"},
           "hooks": [
-            {
-              "hook": "reminders.set",
-              "args": [
-                "whatsapp",
-                "{appointment.id}"
-              ]
-            }
+            {"hook": "appointments.book_confirmed", "args": ["wa"], "save_as": "agenda.appointment_id"}
           ],
-          "next": "FIN_OK"
+          "next": "AGENDA_CONFIRMACION"
         },
         {
           "key": "2",
-          "label": "Correo",
+          "label": "Correo electronico",
+          "save": {"agenda.reminder": "email"},
           "hooks": [
-            {
-              "hook": "reminders.set",
-              "args": [
-                "email",
-                "{appointment.id}"
-              ]
-            }
+            {"hook": "appointments.book_confirmed", "args": ["email"], "save_as": "agenda.appointment_id"}
           ],
-          "next": "FIN_OK"
-        }
+          "next": "AGENDA_CONFIRMACION"
+        },
+        {"key": "9", "label": "Inicio", "next": "HOME"}
       ]
     },
     {
-      "id": "FIN_OK",
+      "id": "AGENDA_CONFIRMACION",
       "type": "message",
-      "text": "Listo 🎉 Tu cita es {cita.fecha} {cita.hora} en {cita.sede}. Te enviaremos recordatorios.",
+      "text": "Listo. Tu cita quedo para {agenda.display} en {agenda.site_label}.\n\nDireccion: Hospital de Especialidades (Torre Sur), consultorio 204 (antigua Clinica Kennedy Alborada).\nMapa: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7\n\nTe enviaremos recordatorios. Si necesitas cambiarla o cancelar, responde por este medio.",
       "next": "HOME"
     },
     {
-      "id": "MIL_NOMBRE",
-      "type": "input",
-      "text": "Escribe tus Nombres y Apellidos:",
-      "validation": "nombre_apellidos",
-      "save": "paciente.nombre_apellidos",
-      "next": "MIL_ID"
-    },
-    {
-      "id": "MIL_ID",
-      "type": "input",
-      "text": "Ingresa tu Cédula o Pasaporte:",
-      "validation": "cedula_pasaporte",
-      "save": "paciente.cedula",
-      "hooks": [
-        {
-          "hook": "db.upsert_patient_min",
-          "args": [
-            "{paciente.cedula}",
-            "{paciente.nombre_apellidos}"
-          ]
-        }
-      ],
-      "next": "MIL_FNAC"
-    },
-    {
-      "id": "MIL_FNAC",
-      "type": "input",
-      "text": "Fecha de nacimiento (DD-MM-AAAA):",
-      "validation": "fecha_dmy",
-      "save": "paciente.fnac",
-      "hooks": [
-        {
-          "hook": "db.update_patient_field",
-          "args": [
-            "fnac",
-            "{paciente.fnac}"
-          ]
-        }
-      ],
-      "next": "MIL_TEL"
-    },
-    {
-      "id": "MIL_TEL",
-      "type": "input",
-      "text": "Teléfono de contacto (EC):",
-      "validation": "telefono_ec",
-      "save": "paciente.telefono",
-      "hooks": [
-        {
-          "hook": "db.update_patient_field",
-          "args": [
-            "telefono",
-            "{paciente.telefono}"
-          ]
-        }
-      ],
-      "next": "MIL_PREF_FECHA_MENU"
-    },
-    {
-      "id": "MIL_PREF_FECHA_MENU",
+      "id": "AGENDA_MIL_FECHA",
       "type": "choice",
-      "text": "Preferencia de fecha en Milagro:",
+      "text": "Selecciona la fecha preferida para Milagro:",
       "options": [
         {
           "key": "1",
-          "label": "Agendar HOY (preferencia)",
-          "hooks": [
-            {
-              "hook": "dates.today",
-              "save_as": "cita.fecha_pref"
-            }
-          ],
-          "next": "MIL_PREF_TURNO"
+          "label": "Hoy",
+          "hooks": [{"hook": "dates_today", "save_as": "agenda.mil_date"}],
+          "next": "AGENDA_MIL_TURNO"
         },
         {
           "key": "2",
-          "label": "Agendar MAÑANA (preferencia)",
-          "hooks": [
-            {
-              "hook": "dates.tomorrow",
-              "save_as": "cita.fecha_pref"
-            }
-          ],
-          "next": "MIL_PREF_TURNO"
+          "label": "Manana",
+          "hooks": [{"hook": "dates_tomorrow", "save_as": "agenda.mil_date"}],
+          "next": "AGENDA_MIL_TURNO"
         },
         {
           "key": "3",
-          "label": "FECHA POSTERIOR (DD-MM-AAAA)",
-          "next": "MIL_FECHA_OTRA"
+          "label": "Otra fecha (DD-MM-AAAA)",
+          "next": "AGENDA_MIL_FECHA_INPUT"
         },
-        {
-          "key": "4",
-          "label": "Regresar",
-          "next": "AGENDAR_SEDE"
-        }
+        {"key": "9", "label": "Volver", "next": "AGENDA_SEDE"}
       ]
     },
     {
-      "id": "MIL_FECHA_OTRA",
+      "id": "AGENDA_MIL_FECHA_INPUT",
       "type": "input",
-      "text": "Escribe la fecha (DD-MM-AAAA):",
+      "text": "Ingresa la fecha en formato DD-MM-AAAA:",
       "validation": "fecha_dmy",
-      "hooks": [
-        {
-          "hook": "dates.parse_and_save",
-          "args": [
-            "{input}",
-            "cita.fecha_pref"
-          ]
-        }
-      ],
-      "next": "MIL_PREF_TURNO"
+      "save_as": "agenda.mil_date",
+      "next": "AGENDA_MIL_TURNO"
     },
     {
-      "id": "MIL_PREF_TURNO",
+      "id": "AGENDA_MIL_TURNO",
       "type": "choice",
-      "text": "¿Prefieres mañana o tarde?",
+      "text": "Selecciona la franja horaria preferida en Milagro:",
       "options": [
         {
           "key": "1",
-          "label": "Mañana",
-          "save": {
-            "cita.turno_pref": "Mañana"
-          },
-          "next": "MIL_CONFIRM"
+          "label": "Manana (09:00-12:00)",
+          "save": {"agenda.mil_shift": "manana"},
+          "next": "AGENDA_MIL_REGISTRO"
         },
         {
           "key": "2",
-          "label": "Tarde",
-          "save": {
-            "cita.turno_pref": "Tarde"
-          },
-          "next": "MIL_CONFIRM"
-        }
+          "label": "Tarde (15:00-18:00)",
+          "save": {"agenda.mil_shift": "tarde"},
+          "next": "AGENDA_MIL_REGISTRO"
+        },
+        {"key": "9", "label": "Volver", "next": "AGENDA_MIL_FECHA"}
       ]
     },
     {
-      "id": "MIL_CONFIRM",
+      "id": "AGENDA_MIL_REGISTRO",
       "type": "message",
-      "text": "Recibido 👌 Tu solicitud en Milagro queda pendiente de confirmación. Te contactaremos para confirmar o proponer alternativas.",
       "hooks": [
         {
-          "hook": "appointments.create_pending",
-          "args": [
-            "{cita.sede}",
-            "{cita.fecha_pref}",
-            "{cita.turno_pref}"
-          ]
+          "hook": "appointments.register_milagro",
+          "args": ["{agenda.mil_date}", "{agenda.mil_shift}"],
+          "save_as": "agenda.appointment_id"
         }
       ],
+      "text": "Solicitud registrada. Nuestro equipo confirmara disponibilidad y te contactara por este medio.",
+      "next": "AGENDA_MIL_CONFIRMACION"
+    },
+    {
+      "id": "AGENDA_MIL_CONFIRMACION",
+      "type": "message",
+      "text": "Milagro: Clinica Santa Elena, Av. Cristobal Colon y Calle Gral. PJ Montero.\nMapa: https://maps.app.goo.gl/7hh97D7JDcznqRSK9\n\nEn cuanto confirmemos horario te escribiremos. Gracias por la confianza.",
       "next": "HOME"
     },
     {
-      "id": "SERVICIOS",
+      "id": "INFO_SERVICIOS",
       "type": "choice",
-      "text": "Consulta médica con el Dr. Guzmán (45 USD)\\nIncluye: ECG, asesoría nutricional + plan personalizado, educación en diabetes, examen de neuropatía diabética, valoración de riesgo cardiovascular y renal.\\n\\nOtros:\\n• Consulta especializada en Neuropatía Diabética\\n• Manejo de Pie diabético / Curación de heridas",
+      "text": "Selecciona el servicio sobre el que deseas leer:",
       "options": [
-        {
-          "key": "1",
-          "label": "Agendar",
-          "next": "AGENDAR_SEDE"
-        },
-        {
-          "key": "2",
-          "label": "Ubicación",
-          "next": "UBICACIONES"
-        },
-        {
-          "key": "9",
-          "label": "Inicio",
-          "next": "HOME"
-        }
+        {"key": "1", "label": "Consulta integral (60 min, $45)", "next": "INFO_CONSULTA"},
+        {"key": "2", "label": "Neuropatia diabetica", "next": "INFO_NEUROPATIA"},
+        {"key": "3", "label": "Pie diabetico y curaciones", "next": "INFO_PIE"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
+      ]
+    },
+    {
+      "id": "INFO_CONSULTA",
+      "type": "choice",
+      "text": "La consulta dura 60 minutos y tiene un valor de 45 dolares. Revisamos tu historia, aclaramos dudas y definimos un plan para controlar tu condicion y mejorar tu calidad de vida. Incluye ECG, asesoria nutricional con plan, educacion en diabetes (para ti y tu familia), examen de neuropatia diabetica y valoracion del riesgo cardiovascular/renal.",
+      "options": [
+        {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
+        {"key": "2", "label": "Ver ubicaciones", "next": "UBICACIONES"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
+      ]
+    },
+    {
+      "id": "INFO_NEUROPATIA",
+      "type": "choice",
+      "text": "Si presentas hormigueo, ardor, entumecimiento o dolor en pies/manos, evaluamos el grado de neuropatia y ajustamos tu tratamiento. Te orientamos en medicacion, habitos, cuidado de pies y senales de alarma, con un plan claro para tu dia a dia.",
+      "options": [
+        {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
+        {"key": "2", "label": "Ver ubicaciones", "next": "UBICACIONES"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
+      ]
+    },
+    {
+      "id": "INFO_PIE",
+      "type": "choice",
+      "text": "Las curaciones de pie diabetico estan incluidas dentro de la consulta. Si se requiere material avanzado o procedimientos adicionales, te lo explicamos y solicitamos autorizacion antes de continuar.",
+      "options": [
+        {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
+        {"key": "2", "label": "Ver ubicaciones", "next": "UBICACIONES"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
       ]
     },
     {
       "id": "PRECIOS",
       "type": "choice",
-      "text": "Precios:\\n• Consulta con el Dr. Guzmán: $45 (incluye ECG, asesoría nutricional con plan, educación en diabetes, examen de neuropatía diabética y valoración de riesgo cardiovascular/renal).\\n• Procedimientos/curaciones: según evaluación.",
+      "text": "Consulta $45 (incluye ECG, plan nutricional, educacion en diabetes, examen de neuropatia y valoracion de riesgo, ademas de curaciones de pie diabetico). Material o procedimientos avanzados: segun necesidad y con autorizacion previa.",
       "options": [
-        {
-          "key": "1",
-          "label": "Agendar",
-          "next": "AGENDAR_SEDE"
-        },
-        {
-          "key": "2",
-          "label": "Ubicación",
-          "next": "UBICACIONES"
-        },
-        {
-          "key": "9",
-          "label": "Inicio",
-          "next": "HOME"
-        }
+        {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
+        {"key": "2", "label": "Ver ubicaciones", "next": "UBICACIONES"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
       ]
     },
     {
       "id": "UBICACIONES",
       "type": "choice",
-      "text": "Guayaquil:\\nHospital de Especialidades (Torre Sur), Consultorio 204 (antigua Clínica Kennedy Alborada).\\nGPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7\\n\\nMilagro:\\nCLÍNICA SANTA ELENA, Av. Cristóbal Colón y Calle Gral. P.J. Montero\\nGPS: https://maps.app.goo.gl/dxZqqW91yS5JLF79A",
+      "text": "Guayaquil: Hospital de Especialidades (Torre Sur), consultorio 204 (antigua Clinica Kennedy Alborada).\nMapa: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7\n\nMilagro: Clinica Santa Elena, Av. Cristobal Colon y Calle Gral. PJ Montero.\nMapa: https://maps.app.goo.gl/7hh97D7JDcznqRSK9",
       "options": [
+        {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
+      ]
+    },
+    {
+      "id": "REA_DNI",
+      "type": "input",
+      "text": "Para buscar tu cita escribe tu cedula/pasaporte:",
+      "validation": "dni",
+      "save_as": "agenda.dni",
+      "hooks": [
         {
-          "key": "1",
-          "label": "Agendar",
-          "next": "AGENDAR_SEDE"
-        },
-        {
-          "key": "9",
-          "label": "Inicio",
-          "next": "HOME"
+          "hook": "appointments.upcoming_by_dni",
+          "args": ["{agenda.dni}"],
+          "if_true_next": "REA_RESUMEN",
+          "if_false_next": "REA_SIN_CITA"
         }
       ]
     },
     {
-      "id": "REA_CAN_ID",
-      "type": "input",
-      "text": "Ingresa tu cédula/pasaporte para buscar tu próxima cita:",
-      "validation": "cedula_pasaporte",
-      "save": "paciente.cedula",
-      "hooks": [
-        {
-          "hook": "appointments.find_upcoming_by_id",
-          "args": [
-            "{paciente.cedula}"
-          ]
-        }
-      ],
-      "next": "REA_CAN_LISTA"
+      "id": "REA_SIN_CITA",
+      "type": "choice",
+      "text": "No encontre citas activas con ese documento.\n\n?Deseas agendar una nueva cita?",
+      "options": [
+        {"key": "1", "label": "Si, agendar", "next": "AGENDA_SEDE"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
+      ]
     },
     {
-      "id": "REA_CAN_LISTA",
+      "id": "REA_RESUMEN",
       "type": "choice",
-      "text": "Estas son tus próximas citas:",
-      "dynamic_options_from": "citas.upcoming",
-      "post_options": [
-        {
-          "key": "R",
-          "label": "Reagendar la seleccionada",
-          "next": "REA_FECHA_MENU"
-        },
-        {
-          "key": "C",
-          "label": "Cancelar la seleccionada",
-          "next": "CAN_MOTIVO"
-        },
-        {
-          "key": "9",
-          "label": "Inicio",
-          "next": "HOME"
-        }
-      ],
-      "on_select": {
-        "save_as": "cita.target"
-      },
-      "fallback": {
-        "message": "No encuentro una cita próxima. ¿Deseas agendar? (Escribe 1 para sí o 9 para inicio)"
-      }
+      "text": "Tu proxima cita: {appointments.target.local_label} en {appointments.target.site_label}.\nEstado: {appointments.target.status}.\n\n?Que deseas hacer?",
+      "options": [
+        {"key": "1", "label": "Reagendar", "next": "REA_RES_FECHA_MENU"},
+        {"key": "2", "label": "Cancelar", "next": "REA_CANCEL_MOTIVO"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
+      ]
     },
     {
-      "id": "REA_FECHA_MENU",
+      "id": "REA_RES_FECHA_MENU",
       "type": "choice",
-      "text": "Nueva fecha para tu cita:",
+      "text": "Selecciona la nueva fecha para tu cita:",
       "options": [
         {
           "key": "1",
-          "label": "Agendar HOY",
-          "hooks": [
-            {
-              "hook": "dates.today",
-              "save_as": "cita.fecha"
-            }
-          ],
-          "next": "REA_HORA"
+          "label": "Hoy",
+          "hooks": [{"hook": "dates_today", "save_as": "agenda.date"}],
+          "next": "REA_RES_SLOTS"
         },
         {
           "key": "2",
-          "label": "Agendar MAÑANA",
-          "hooks": [
-            {
-              "hook": "dates.tomorrow",
-              "save_as": "cita.fecha"
-            }
-          ],
-          "next": "REA_HORA"
+          "label": "Manana",
+          "hooks": [{"hook": "dates_tomorrow", "save_as": "agenda.date"}],
+          "next": "REA_RES_SLOTS"
         },
         {
           "key": "3",
-          "label": "FECHAS POSTERIORES (DD-MM-AAAA)",
-          "next": "REA_FECHA_OTRA"
+          "label": "Otra fecha (DD-MM-AAAA)",
+          "next": "REA_RES_FECHA_INPUT"
         },
-        {
-          "key": "4",
-          "label": "Regresar",
-          "next": "REA_CAN_LISTA"
-        }
+        {"key": "9", "label": "Volver", "next": "REA_RESUMEN"}
       ]
     },
     {
-      "id": "REA_FECHA_OTRA",
+      "id": "REA_RES_FECHA_INPUT",
       "type": "input",
-      "text": "Fecha (DD-MM-AAAA):",
+      "text": "Ingresa la nueva fecha (DD-MM-AAAA):",
       "validation": "fecha_dmy",
-      "hooks": [
-        {
-          "hook": "dates.parse_and_save",
-          "args": [
-            "{input}",
-            "cita.fecha"
-          ]
-        }
-      ],
-      "next": "REA_HORA"
+      "save_as": "agenda.date",
+      "next": "REA_RES_SLOTS"
     },
     {
-      "id": "REA_HORA",
+      "id": "REA_RES_SLOTS",
       "type": "choice",
-      "text": "Elige nueva hora disponible:",
+      "text": "Horarios disponibles para {agenda.date}:",
       "hooks": [
         {
-          "hook": "appointments.suggest_slots_for_existing",
-          "args": [
-            "{cita.target.sede}",
-            "{cita.fecha}",
-            "{rules.slot_duration_minutes}",
-            "{rules.gap_after_slot_minutes}"
-          ]
+          "hook": "appointments.list_slots",
+          "args": ["{agenda.site}", "{agenda.date}"]
         }
       ],
-      "dynamic_options_from": "cita.slots",
-      "on_select": {
-        "save_as": "cita.nueva_hora"
-      },
-      "on_select_next": "REA_CONFIRM"
+      "dynamic_options_from": "agenda.slots",
+      "on_select": {"save_as": "agenda.selected_slot"},
+      "on_select_next": "REA_RES_CONFIRM",
+      "fallback": {
+        "message": "No tengo disponibilidad en esa fecha. Puedes intentar con otra fecha o escribir 9 para volver."
+      }
     },
     {
-      "id": "REA_CONFIRM",
+      "id": "REA_RES_CONFIRM",
       "type": "choice",
-      "text": "Confirmar cambio a {cita.fecha} {cita.nueva_hora} en {cita.target.sede}?",
+      "text": "Confirmas reagendar tu cita a {agenda.selected_slot} en {agenda.site_label}?",
+      "on_enter_hooks": [
+        {"hook": "agenda.store_slot", "args": ["{agenda.selected_slot}"]}
+      ],
       "options": [
         {
           "key": "1",
@@ -669,293 +479,71 @@
           "hooks": [
             {
               "hook": "appointments.reschedule",
-              "args": [
-                "{cita.target.id}",
-                "{cita.fecha}",
-                "{cita.nueva_hora}",
-                "{rules.slot_duration_minutes}",
-                "{rules.gap_after_slot_minutes}"
-              ]
+              "args": ["{appointments.target.id}", "{agenda.selected_slot}"]
             }
           ],
-          "next": "FIN_REA_OK"
+          "next": "REA_RES_DONE"
         },
-        {
-          "key": "2",
-          "label": "Cambiar fecha/hora",
-          "next": "REA_FECHA_MENU"
-        },
-        {
-          "key": "9",
-          "label": "Inicio",
-          "next": "HOME"
-        }
+        {"key": "2", "label": "Elegir otra hora", "next": "REA_RES_SLOTS"},
+        {"key": "9", "label": "Volver", "next": "REA_RESUMEN"}
       ]
     },
     {
-      "id": "FIN_REA_OK",
+      "id": "REA_RES_DONE",
       "type": "message",
-      "text": "Actualizado ✅. Tu nueva cita: {cita.fecha} {cita.nueva_hora}.",
+      "text": "Actualizado. Tu nueva cita es {agenda.display} en {agenda.site_label}.",
       "next": "HOME"
     },
     {
-      "id": "CAN_MOTIVO",
+      "id": "REA_CANCEL_MOTIVO",
       "type": "input",
-      "text": "Si deseas, cuéntame el motivo de la cancelación (opcional). Escribe el texto o envía 9 para saltar:",
-      "save": "cita.motivo_cancel",
-      "next": "CAN_CONFIRM"
+      "text": "Si deseas, escribe el motivo de la cancelacion (o deja en blanco):",
+      "save_as": "appointments.cancel_reason",
+      "next": "REA_CANCEL_CONFIRM"
     },
     {
-      "id": "CAN_CONFIRM",
+      "id": "REA_CANCEL_CONFIRM",
       "type": "choice",
-      "text": "¿Confirmas cancelar esta cita?",
+      "text": "Confirmas cancelar la cita {appointments.target.local_label} en {appointments.target.site_label}?",
       "options": [
         {
           "key": "1",
-          "label": "Sí, cancelar",
+          "label": "Cancelar",
           "hooks": [
-            {
-              "hook": "appointments.cancel",
-              "args": [
-                "{cita.target.id}",
-                "{cita.motivo_cancel}"
-              ]
-            }
+            {"hook": "appointments.cancel", "args": ["{appointments.target.id}"]}
           ],
-          "next": "FIN_CAN_OK"
+          "next": "REA_CANCEL_DONE"
         },
-        {
-          "key": "9",
-          "label": "No, volver al inicio",
-          "next": "HOME"
-        }
+        {"key": "2", "label": "No, conservar", "next": "REA_RESUMEN"}
       ]
     },
     {
-      "id": "FIN_CAN_OK",
-      "type": "message",
-      "text": "Cancelada 🗓️. ¿Agendamos en otra fecha? (1 Sí / 9 Inicio)",
-      "next": "HOME"
+      "id": "REA_CANCEL_DONE",
+      "type": "choice",
+      "text": "Cita cancelada. ?Deseas agendar otra fecha?",
+      "options": [
+        {"key": "1", "label": "Si, agendar", "next": "AGENDA_SEDE"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
+      ]
     },
     {
       "id": "PORTAL",
       "type": "choice",
-      "text": "Pronto podrás ver resultados, indicaciones y pagos. Por ahora, puedo ayudarte con agendar, reagendar o consultas.",
+      "text": "El Portal del Paciente estara disponible pronto. Mientras tanto puedo ayudarte a agendar, reagendar o cancelar por este canal.",
       "options": [
-        {
-          "key": "1",
-          "label": "Agendar",
-          "next": "AGENDAR_SEDE"
-        },
-        {
-          "key": "5",
-          "label": "Reagendar/Cancelar",
-          "next": "REA_CAN_ID"
-        },
-        {
-          "key": "9",
-          "label": "Inicio",
-          "next": "HOME"
-        }
+        {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
+        {"key": "5", "label": "Reagendar o cancelar", "next": "REA_DNI"},
+        {"key": "9", "label": "Inicio", "next": "HOME"}
       ]
     },
     {
       "id": "CONTACTO",
       "type": "choice",
-      "text": "Puedo transferirte al Dr. Guzmán o su equipo.",
+      "text": "Puedes escribir 0 en cualquier momento para que te conecte con un asesor humano. Tambien puedo ayudarte a agendar una cita con el Dr. Guzman.",
       "options": [
-        {
-          "key": "1",
-          "label": "Transferir ahora (humano)",
-          "hooks": [
-            {
-              "hook": "handoff.to_human"
-            }
-          ],
-          "next": "HOME"
-        },
-        {
-          "key": "2",
-          "label": "Agendar",
-          "next": "AGENDAR_SEDE"
-        },
-        {
-          "key": "9",
-          "label": "Inicio",
-          "next": "HOME"
-        }
+        {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
+        {"key": "2", "label": "Ver opciones", "next": "HOME"}
       ]
-    },
-    {
-      "id": "DR_CONTACT_NOMBRE",
-      "type": "input",
-      "text": "Perfecto. Para avisarle al Dr. Guzmán, ¿cuál es tu nombre y apellidos?",
-      "validation": "nombre_apellidos",
-      "save": "contacto.nombre",
-      "next": "DR_CONTACT_TEL"
-    },
-    {
-      "id": "DR_CONTACT_TEL",
-      "type": "input",
-      "text": "¿Cuál es tu teléfono (EC)?",
-      "validation": "telefono_ec",
-      "save": "contacto.telefono",
-      "hooks": [
-        {
-          "hook": "handoff.notify_doctor",
-          "args": [
-            "{contacto.nombre}",
-            "{contacto.telefono}"
-          ]
-        }
-      ],
-      "next": "DR_CONTACT_OK"
-    },
-    {
-      "id": "DR_CONTACT_OK",
-      "type": "message",
-      "text": "Gracias. Ya le avisé al Dr. Guzmán con tus datos. Te contactará a la brevedad.",
-      "next": "HOME"
-    },
-    {
-      "id": "RF",
-      "type": "choice",
-      "text": "Lamento lo que sientes. Puedo ayudarte dándote una cita médica prioritaria o, en su defecto, recuerda que si los síntomas son muy intensos puedes acudir a una emergencia de cualquier hospital o llamar al 911.",
-      "options": [
-        {
-          "key": "1",
-          "label": "Agendar cita prioritaria",
-          "next": "P_ID"
-        },
-        {
-          "key": "9",
-          "label": "Inicio",
-          "next": "HOME"
-        }
-      ]
-    },
-    {
-      "id": "P_ID",
-      "type": "input",
-      "text": "Ingresa tu Cédula/Pasaporte:",
-      "validation": "cedula_pasaporte",
-      "save": "paciente.cedula",
-      "hooks": [
-        {
-          "hook": "db.find_or_create_patient_by_id",
-          "args": [
-            "{paciente.cedula}"
-          ]
-        }
-      ],
-      "next": "P_TEL"
-    },
-    {
-      "id": "P_TEL",
-      "type": "input",
-      "text": "Teléfono (EC):",
-      "validation": "telefono_ec",
-      "save": "paciente.telefono",
-      "hooks": [
-        {
-          "hook": "db.update_patient_field",
-          "args": [
-            "telefono",
-            "{paciente.telefono}"
-          ]
-        }
-      ],
-      "next": "P_SEDE"
-    },
-    {
-      "id": "P_SEDE",
-      "type": "choice",
-      "text": "Elige sede prioritaria:",
-      "options": [
-        {
-          "key": "1",
-          "label": "Guayaquil (24–48h)",
-          "save": {
-            "cita.sede": "Guayaquil"
-          },
-          "next": "P_GYE_SLOTS"
-        },
-        {
-          "key": "2",
-          "label": "Milagro (confirmación rápida)",
-          "save": {
-            "cita.sede": "Milagro"
-          },
-          "next": "P_MIL_PENDING"
-        }
-      ]
-    },
-    {
-      "id": "P_GYE_SLOTS",
-      "type": "choice",
-      "text": "Próximos horarios disponibles (24–48h):",
-      "hooks": [
-        {
-          "hook": "appointments.next_slots",
-          "args": [
-            "{cita.sede}",
-            3,
-            48
-          ]
-        }
-      ],
-      "dynamic_options_from": "cita.slots",
-      "on_select": {
-        "save_as": "cita.fechor"
-      },
-      "on_select_next": "P_CONFIRM"
-    },
-    {
-      "id": "P_CONFIRM",
-      "type": "choice",
-      "text": "Tu cita prioritaria: {cita.fechor}, {cita.sede}. ¿Confirmamos?",
-      "options": [
-        {
-          "key": "1",
-          "label": "Confirmar",
-          "hooks": [
-            {
-              "hook": "appointments.reserve_priority",
-              "args": [
-                "{cita.sede}",
-                "{cita.fechor}",
-                "{rules.slot_duration_minutes}",
-                "{rules.gap_after_slot_minutes}"
-              ]
-            }
-          ],
-          "next": "GYE_REMINDERS"
-        },
-        {
-          "key": "2",
-          "label": "Cambiar hora",
-          "next": "P_GYE_SLOTS"
-        },
-        {
-          "key": "9",
-          "label": "Cancelar",
-          "next": "HOME"
-        }
-      ]
-    },
-    {
-      "id": "P_MIL_PENDING",
-      "type": "message",
-      "text": "Solicitud prioritaria recibida. Te confirmaremos a la brevedad.",
-      "hooks": [
-        {
-          "hook": "appointments.create_pending_priority",
-          "args": [
-            "{cita.sede}"
-          ]
-        }
-      ],
-      "next": "HOME"
     }
   ]
 }

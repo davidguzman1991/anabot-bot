@@ -1,38 +1,48 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
-import re
-import unicodedata
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict
 
 import httpx
+<<<<<<< Updated upstream
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response, Query
+=======
+import psycopg2
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request, Response
+>>>>>>> Stashed changes
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from zoneinfo import ZoneInfo
 
 from config import get_settings
-from db import engine
-from repo import create_appointment, get_patient_by_dni, upsert_patient
-from utils.google_calendar import create_calendar_event
-
-settings = get_settings()
+from flow_engine import FlowEngine
+from session_store import FlowSessionStore
 
 logger = logging.getLogger("anabot")
 logging.basicConfig(level=logging.INFO)
+
+settings = get_settings()
+DATABASE_URL = settings.DATABASE_URL
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or settings.TELEGRAM_TOKEN
 if not TELEGRAM_BOT_TOKEN:
     raise RuntimeError("TELEGRAM_BOT_TOKEN/TELEGRAM_TOKEN env var is required")
 
-PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+TELEGRAM_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 
-APPT_DURATION_MIN = int(os.getenv("APPT_DURATION_MIN", "45"))
-TZ = ZoneInfo("America/Guayaquil")
+WA_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
+WA_PHONE_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+WA_VERIFY = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+WA_MSG_URL = "https://graph.facebook.com/v20.0/{phone_id}/messages"
+
+FLOW_PATH = Path(__file__).with_name("flow.json")
+SESSION_STORE = FlowSessionStore()
+FLOW_ENGINE: FlowEngine | None = None
+SCHEMA_READY = False
+FOOTER_TEXT = "\n\n0 Hablar con humano · 1/9 Inicio / Atrás"
 
 app = FastAPI(title="AnaBot", version="1.0.0")
 app.add_middleware(
@@ -42,6 +52,51 @@ app.add_middleware(
     allow_headers=["*"],
     allow_methods=["*"],
 )
+
+
+def ensure_schema_once() -> None:
+    global SCHEMA_READY
+    if SCHEMA_READY:
+        return
+    if not DATABASE_URL:
+        logger.warning("DATABASE_URL not set; skipping schema init")
+        SCHEMA_READY = True
+        return
+    sql_path = Path(__file__).with_name("db_init.sql")
+    if not sql_path.exists():
+        SCHEMA_READY = True
+        return
+    statements = [segment.strip() for segment in sql_path.read_text(encoding="utf-8").split(";") if segment.strip()]
+    if not statements:
+        SCHEMA_READY = True
+        return
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor() as cur:
+                for stmt in statements:
+                    cur.execute(stmt)
+            conn.commit()
+        SCHEMA_READY = True
+    except Exception:
+        logger.exception("Failed to ensure database schema")
+        raise
+
+
+def get_flow_engine() -> FlowEngine:
+    global FLOW_ENGINE
+    if FLOW_ENGINE is None:
+        ensure_schema_once()
+        FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH), store=SESSION_STORE)
+    return FLOW_ENGINE
+
+
+def _append_footer(message: str) -> str:
+    message = (message or "").strip()
+    if not message:
+        message = "Gracias por escribirnos."
+    if FOOTER_TEXT.strip() in message:
+        return message
+    return f"{message}{FOOTER_TEXT}"
 
 
 @app.on_event("startup")
@@ -55,28 +110,60 @@ async def log_routes() -> None:
 
 
 @app.get("/health")
-def health():
+async def health() -> dict[str, bool]:
     return {"ok": True}
 
 
-@app.get("/db/ping")
-def db_ping():
-    try:
-        with engine.connect() as conn:
-            conn.exec_driver_sql("SELECT 1")
-        return {"status": "ok"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ping a la base de datos fallido: {type(e).__name__}: {e}")
-
-# --- NOOP webhook para silenciar 404 de scrapers externos ---
 @app.api_route("/webhook", methods=["GET", "POST"], include_in_schema=False)
-def noop_webhook():
+async def noop_webhook() -> Response:
     return Response(status_code=200)
-# --- fin NOOP webhook ---
 
 
+async def handle_text(user_text: str, platform: str, user_id: str) -> str:
+    engine = get_flow_engine()
+    clean_text = (user_text or "").strip()
+    channel = "wa" if platform.lower().startswith("wa") else "tg"
+    session_id = f"{channel}:{user_id}"
+    preview = clean_text.replace("\n", " ")[:120]
+    logger.info("handle_text channel=%s user=%s len=%s preview=%s", channel, user_id, len(clean_text), preview)
+
+    if clean_text == "0":
+        engine.hooks.handoff_to_human(platform=channel, user_id=str(user_id), message=user_text, ctx={})
+        return _append_footer("Te conecto con un asesor humano y compartiré tu mensaje.")
+
+    # Prime context with metadata before delegating to the flow engine
+    state = SESSION_STORE.get(session_id)
+    ctx = state.setdefault("ctx", {})
+    meta = ctx.setdefault("meta", {})
+    meta["channel"] = channel
+    meta["platform"] = platform.lower()
+    meta["user_id"] = str(user_id)
+    ctx["last_text"] = clean_text
+    state["ctx"] = ctx
+    SESSION_STORE.set(session_id, state)
+
+    result = engine.process(session_id, clean_text)
+    post_state = SESSION_STORE.snapshot(session_id)
+    payload = post_state.get("payload", {})
+
+    patient_id = None
+    agenda = payload.get("agenda") or {}
+    patient = agenda.get("patient") or {}
+    if patient.get("dni"):
+        patient_id = patient["dni"]
+    elif agenda.get("dni"):
+        patient_id = agenda["dni"]
+
+    final_state = SESSION_STORE.get(session_id)
+    final_state["ctx"] = payload
+    final_state["patient_id"] = patient_id
+    SESSION_STORE.set(session_id, final_state)
+
+    message = (result or {}).get("message") or "Gracias por escribirnos."
+    return _append_footer(message)
 
 
+<<<<<<< Updated upstream
 
 WA_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
 WA_PHONE_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
@@ -185,47 +272,103 @@ def send_message(chat_id: int, text: str):
             resp = await client.post(
                 f"{TELEGRAM_API}/sendMessage",
                 json={"chat_id": chat_id, "text": text},
+=======
+async def tg_send_text(chat_id: str, text: str) -> None:
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.post(
+            f"{TELEGRAM_API}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+        )
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "Telegram send error: %s %s",
+                exc.response.status_code if exc.response else "?",
+                exc.response.text if exc.response else exc,
+>>>>>>> Stashed changes
             )
-            try:
-                resp.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                logger.error(
-                    "Telegram send error: %s %s",
-                    exc.response.status_code if exc.response else "?",
-                    exc.response.text if exc.response else exc,
-                )
 
+
+async def wa_send_text(to_number: str, text: str) -> None:
+    if not (WA_TOKEN and WA_PHONE_ID):
+        logger.error("WhatsApp disabled: missing env vars.")
+        return
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.post(
+            WA_MSG_URL.format(phone_id=WA_PHONE_ID),
+            headers={
+                "Authorization": f"Bearer {WA_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "messaging_product": "whatsapp",
+                "to": to_number,
+                "type": "text",
+                "text": {"body": text},
+            },
+        )
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "WhatsApp send error: %s %s",
+                exc.response.status_code if exc.response else "?",
+                exc.response.text if exc.response else exc,
+            )
+
+
+@app.get("/webhook/whatsapp")
+async def wa_verify(
+    mode: str | None = Query(None, alias="hub.mode"),
+    challenge: str | None = Query(None, alias="hub.challenge"),
+    token: str | None = Query(None, alias="hub.verify_token"),
+    mode2: str | None = Query(None, alias="mode"),
+    challenge2: str | None = Query(None, alias="challenge"),
+    token2: str | None = Query(None, alias="token"),
+):
+    m = (mode or mode2 or "").strip()
+    t = (token or token2 or "").strip()
+    c = (challenge or challenge2 or "")
+    if m == "subscribe" and t == (WA_VERIFY or "").strip():
+        return int(c) if c.isdigit() else (c or "")
+    raise HTTPException(status_code=403, detail="Verification failed")
+
+
+@app.post("/webhook/whatsapp")
+async def wa_webhook(request: Request) -> dict[str, bool]:
+    body = await request.json()
     try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(_send())
-    except RuntimeError:
-        asyncio.run(_send())
+        entry = (body.get("entry") or [{}])[0]
+        changes = (entry.get("changes") or [{}])[0]
+        value = changes.get("value") or {}
+        messages = value.get("messages") or []
+        statuses = value.get("statuses") or []
+
+        for message in messages:
+            from_number = message.get("from")
+            msg_type = message.get("type")
+            if not from_number:
+                continue
+            user_text = ""
+            if msg_type == "text":
+                user_text = message["text"].get("body", "")
+            elif msg_type == "reaction":
+                user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
+            else:
+                user_text = ""
+            preview = user_text.replace("\n", " ")[:120]
+            logger.info("WA incoming user=%s len=%s preview=%s", from_number, len(user_text), preview)
+            response = await handle_text(user_text, platform="whatsapp", user_id=from_number)
+            if response:
+                await wa_send_text(from_number, response)
+
+        if statuses:
+            logger.info("WA statuses: %s", json.dumps(statuses)[:200])
+
     except Exception:
-        logger.exception("Telegram send unexpected error")
-
-
-def format_dt(dt: datetime) -> str:
-    local_dt = dt.astimezone(TZ)
-    return local_dt.strftime("%A %d/%m/%Y a las %H:%M")
-
-
-def compute_slot(option: str) -> Optional[datetime]:
-    now = datetime.now(TZ)
-    if option == "1":
-        candidate = now.replace(hour=16, minute=0, second=0, microsecond=0)
-        if candidate <= now:
-            candidate += timedelta(days=1)
-        return candidate
-    if option == "2":
-        candidate = (now + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
-        return candidate
-    return None
-
-
-LOCATIONS = {
-    "1": "Hospital de Especialidades - Torre Sur, C.204 (Guayaquil)\nGPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7",
-    "2": "Clínica Santa Elena (Milagro)\nGPS: https://maps.app.goo.gl/dxZqqW91yS5JLF79A",
-}
+        logger.exception("WhatsApp webhook processing failed")
+    return {"ok": True}
 
 
 @app.post("/telegram/webhook")
@@ -233,165 +376,40 @@ async def telegram_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
-):
-    expected_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
-    if expected_secret:
-        if x_telegram_bot_api_secret_token != expected_secret:
-            logging.warning("Webhook rechazado: secret inválido o ausente")
-            raise HTTPException(status_code=403, detail="Forbidden")
-        logging.info("Webhook recibido con secret válido")
-    else:
-        logging.debug("Webhook recibido sin secret configurado")
+) -> dict[str, bool]:
+    if TELEGRAM_SECRET and x_telegram_bot_api_secret_token != TELEGRAM_SECRET:
+        logger.warning("Telegram webhook rejected: invalid secret")
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     try:
         payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    background_tasks.add_task(process_update, payload)
+    background_tasks.add_task(asyncio.create_task, process_telegram_update(payload))
     return {"ok": True}
 
 
-def process_update(payload: Dict[str, Any]) -> None:
+async def process_telegram_update(payload: Dict[str, Any]) -> None:
     try:
         message = payload.get("message") or payload.get("edited_message")
         if not message:
             return
 
-        chat = message.get("chat", {}).get("id")
-        if not chat:
+        chat = message.get("chat") or {}
+        chat_id = chat.get("id")
+        if chat_id is None:
             return
+        chat_id = str(chat_id)
 
-        text = (message.get("text") or "").strip()
-        if not text:
-            send_message(chat, "Solo puedo leer texto por ahora, ¿puedes escribirlo?")
-            return
+        user_text = (message.get("text") or "").strip()
+        preview = user_text.replace("\n", " ")[:120]
+        logger.info("TG incoming user=%s len=%s preview=%s", chat_id, len(user_text), preview)
 
-        state = SESSIONS.get(str(chat)) or reset_session(str(chat))
-        normalized = norm(text)
-        data = state["data"]
-
-        with Session(engine) as db:
-            if state["stage"] == "ask_dni":
-                if not re.fullmatch(r"[0-9]{9,12}", normalized):
-                    send_message(chat, "Necesito tu número de cédula (9-12 dígitos). Inténtalo nuevamente.")
-                    return
-                data["dni"] = normalized
-                patient = get_patient_by_dni(db, normalized)
-                if patient:
-                    data["patient"] = patient
-                    state["stage"] = "confirm_existing"
-                    send_message(
-                        chat,
-                        f"Tengo registrado a {patient.full_name} (Tel: {patient.phone or 'sin teléfono'}). "
-                        "¿Deseas usar estos datos? (responde sí/no)",
-                    )
-                else:
-                    state["stage"] = "ask_name"
-                    send_message(chat, "Perfecto, ¿Cuál es tu nombre completo?")
-                return
-
-            if state["stage"] == "confirm_existing":
-                if normalized in {"si", "sí", "claro", "ok"}:
-                    patient = data["patient"]
-                    data["patient_id"] = patient.id
-                    data["full_name"] = patient.full_name
-                    data["phone"] = patient.phone or ""
-                    state["stage"] = "choose_location"
-                    send_message(chat, "¿En qué sede prefieres atenderte? 1) Guayaquil  2) Milagro")
-                elif normalized in {"no", "prefiero no"}:
-                    state["stage"] = "ask_name"
-                    send_message(chat, "Entendido. ¿Cuál es tu nombre completo?")
-                else:
-                    send_message(chat, "Responde con sí o no para continuar.")
-                return
-
-            if state["stage"] == "ask_name":
-                data["full_name"] = text.strip()
-                state["stage"] = "ask_phone"
-                send_message(chat, "¿Cuál es tu número de teléfono o WhatsApp?")
-                return
-
-            if state["stage"] == "ask_phone":
-                data["phone"] = text.strip()
-                state["stage"] = "choose_location"
-                send_message(chat, "¿En qué sede prefieres atenderte? 1) Guayaquil  2) Milagro")
-                return
-
-            if state["stage"] == "choose_location":
-                if normalized not in LOCATIONS:
-                    send_message(chat, "Elige 1 para Guayaquil o 2 para Milagro.")
-                    return
-                data["location"] = LOCATIONS[normalized]
-                state["stage"] = "choose_slot"
-                send_message(chat, "Disponibilidad: 1) Hoy tarde (16:00)  2) Mañana mañana (10:00). ¿Cuál prefieres?")
-                return
-
-            if state["stage"] == "choose_slot":
-                slot = compute_slot(normalized)
-                if not slot:
-                    send_message(chat, "Elige 1 o 2 para definir el horario.")
-                    return
-
-                end_dt = slot + timedelta(minutes=APPT_DURATION_MIN)
-                dni = data["dni"]
-
-                patient = data.get("patient")
-                if not patient:
-                    patient = upsert_patient(
-                        db,
-                        dni=dni,
-                        full_name=data.get("full_name", ""),
-                        phone=data.get("phone", ""),
-                    )
-                else:
-                    patient = upsert_patient(
-                        db,
-                        dni=dni,
-                        full_name=data.get("full_name", patient.full_name),
-                        phone=data.get("phone", patient.phone or ""),
-                    )
-
-                calendar_result = create_calendar_event(
-                    summary="Consulta con el Dr. Guzmán",
-                    description=f"Paciente: {patient.full_name}\nCédula: {patient.dni}\nCanal: Telegram",
-                    start_dt=slot,
-                    duration_minutes=APPT_DURATION_MIN,
-                    location=data["location"],
-                )
-
-                event_id = None
-                html_link = None
-                if calendar_result:
-                    event_id = calendar_result.get("id")
-                    html_link = calendar_result.get("htmlLink")
-
-                appointment = create_appointment(
-                    db,
-                    patient_id=patient.id,
-                    start_at=slot,
-                    end_at=end_dt,
-                    location=data["location"],
-                    source="telegram",
-                    calendar_event_id=event_id,
-                    calendar_link=html_link,
-                )
-
-                confirmation = (
-                    f"¡Listo {patient.full_name}! Reservé tu cita para {format_dt(appointment.start_at)}.\n"
-                    f"Sede:\n{data['location']}"
-                )
-                if html_link:
-                    confirmation += f"\nLink del evento: {html_link}"
-
-                send_message(chat, confirmation)
-                reset_session(str(chat))
-                return
-
-        send_message(chat, "No entendí tu mensaje. Vamos a empezar de nuevo. Indica tu número de cédula, por favor.")
-        reset_session(str(chat))
+        response = await handle_text(user_text, platform="telegram", user_id=chat_id)
+        if response:
+            await tg_send_text(chat_id, response)
     except Exception:
-        logging.exception("telegram update failed")
-
+        logger.exception("Telegram webhook processing failed")
 
 
