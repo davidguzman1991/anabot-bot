@@ -7,7 +7,7 @@ import unicodedata
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-import requests
+import httpx
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -94,13 +94,18 @@ def reset_session(chat_id: str) -> ConversationState:
 
 
 def send_message(chat_id: int, text: str):
-    resp = requests.post(
-        f"{TELEGRAM_API}/sendMessage",
-        json={"chat_id": chat_id, "text": text},
-        timeout=10,
-    )
-    if resp.status_code >= 400:
-        logger.error("Telegram send error: %s %s", resp.status_code, resp.text)
+    try:
+        resp = httpx.post(
+            f"{TELEGRAM_API}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=10,
+        )
+        if resp.status_code >= 400:
+            logger.error("Telegram send error: %s %s", resp.status_code, resp.text)
+    except httpx.HTTPError as exc:
+        logger.error("Telegram send HTTP error: %s", exc)
+    except Exception:
+        logger.exception("Telegram send unexpected error")
 
 
 def format_dt(dt: datetime) -> str:
@@ -291,4 +296,5 @@ def process_update(payload: Dict[str, Any]) -> None:
         reset_session(str(chat))
     except Exception:
         logging.exception("telegram update failed")
+
 
