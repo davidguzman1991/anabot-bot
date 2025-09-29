@@ -9,12 +9,13 @@ from typing import Any, Dict
 
 import httpx
 import psycopg2
+from . import db_utils
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import get_settings
-from flow_engine import FlowEngine
-from session_store import FlowSessionStore
+from .config import get_settings
+from .flow_engine import FlowEngine
+from .session_store import FlowSessionStore
 
 logger = logging.getLogger("anabot")
 logging.basicConfig(level=logging.INFO)
@@ -120,12 +121,15 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     clean_text = (user_text or "").strip()
     channel = "wa" if platform.lower().startswith("wa") else "tg"
     session_id = f"{channel}:{user_id}"
+    db_utils.save_message(user_id, clean_text, channel)
     preview = clean_text.replace("\n", " ")[:120]
     logger.info("handle_text channel=%s user=%s len=%s preview=%s", channel, user_id, len(clean_text), preview)
 
     if clean_text == "0":
         engine.hooks.handoff_to_human(platform=channel, user_id=str(user_id), message=user_text, ctx={})
-        return _append_footer("Te conecto con un asesor humano y compartire tu mensaje.")
+        response_text = _append_footer("Te conecto con un asesor humano y compartire tu mensaje.")
+        db_utils.save_response(user_id, response_text, channel)
+        return response_text
 
     state = SESSION_STORE.get(session_id)
     ctx = state.setdefault("ctx", {})
@@ -155,8 +159,8 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     SESSION_STORE.set(session_id, final_state)
 
     message = (result or {}).get("message") or "Gracias por escribirnos."
+    db_utils.save_response(user_id, message, channel)
     return _append_footer(message)
-
 
 async def tg_send_text(chat_id: str, text: str) -> None:
     async with httpx.AsyncClient(timeout=20) as client:
@@ -244,7 +248,12 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
 
             response_text = None
             try:
-                response_text = await handle_text(user_text, platform="whatsapp", user_id=from_number)
+            except Exception:
+                logger.exception("WhatsApp handle_text failed")
+                response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
+                db_utils.save_response(from_number, response_text, "wa")
+            else:
+                db_utils.save_response(from_number, response_text, "wa")
             except Exception:
                 logger.exception("WhatsApp handle_text failed")
                 response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
@@ -303,6 +312,14 @@ async def process_telegram_update(payload: Dict[str, Any]) -> None:
             await tg_send_text(chat_id, response)
     except Exception:
         logger.exception("Telegram webhook processing failed")
+
+
+
+
+
+
+
+
 
 
 

@@ -12,8 +12,8 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from zoneinfo import ZoneInfo
 
-from config import get_settings
-import db_utils
+from .config import get_settings
+from . import db_utils
 
 logger = logging.getLogger("hooks")
 if not logger.handlers:

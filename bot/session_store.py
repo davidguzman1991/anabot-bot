@@ -10,7 +10,7 @@ from typing import Any, Dict, Tuple
 import psycopg2
 from psycopg2.extras import Json, RealDictCursor
 
-from config import get_settings
+from .config import get_settings
 
 _SETTINGS = get_settings()
 _DATABASE_URL = _SETTINGS.DATABASE_URL

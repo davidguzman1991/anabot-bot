@@ -4,7 +4,7 @@ import datetime
 import re
 from typing import Any, Dict, List, Optional
 
-from hooks import Hooks
+from .hooks import Hooks
 
 NAV_HINT_TEXT = "Escribe 1 para volver atrás o 9 para ir al inicio."
 
