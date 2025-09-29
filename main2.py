@@ -241,9 +241,19 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                 user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
             preview = user_text.replace("\n", " ")[:120]
             logger.info("WA incoming user=%s len=%s preview=%s", from_number, len(user_text), preview)
-            response = await handle_text(user_text, platform="whatsapp", user_id=from_number)
-            if response:
-                await wa_send_text(from_number, response)
+
+            response_text = None
+            try:
+                response_text = await handle_text(user_text, platform="whatsapp", user_id=from_number)
+            except Exception:
+                logger.exception("WhatsApp handle_text failed")
+                response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
+
+            if response_text:
+                try:
+                    await wa_send_text(from_number, response_text)
+                except Exception:
+                    logger.exception("WhatsApp response delivery failed")
 
         if statuses:
             logger.info("WA statuses: %s", json.dumps(statuses)[:200])
@@ -293,5 +303,6 @@ async def process_telegram_update(payload: Dict[str, Any]) -> None:
             await tg_send_text(chat_id, response)
     except Exception:
         logger.exception("Telegram webhook processing failed")
+
 
 

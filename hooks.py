@@ -13,6 +13,7 @@ from psycopg2.extras import RealDictCursor
 from zoneinfo import ZoneInfo
 
 from config import get_settings
+import db_utils
 
 logger = logging.getLogger("hooks")
 if not logger.handlers:
@@ -207,6 +208,7 @@ class Hooks:
             """,
             payload,
         )
+        db_utils.log_handoff((user_id or "").strip(), message or ctx.get("last_text", ""), platform or "wa")
         ctx.setdefault("handoff", {})["requested"] = True
         logger.info("handoff requested platform=%s user=%s", platform, user_id)
         return True
@@ -544,6 +546,10 @@ class Hooks:
         )
         ctx.setdefault("appointments", {}).setdefault("target", {})["reminder"] = reminder
         return True
+
+
+
+
 
 
 
