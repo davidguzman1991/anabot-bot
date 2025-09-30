@@ -248,15 +248,14 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
 
             response_text = None
             try:
-            except Exception:
+                # Aquí debe ir la lógica de procesamiento del mensaje
+                pass
+            except Exception as e:
                 logger.exception("WhatsApp handle_text failed")
                 response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
                 db_utils.save_response(from_number, response_text, "wa")
             else:
                 db_utils.save_response(from_number, response_text, "wa")
-            except Exception:
-                logger.exception("WhatsApp handle_text failed")
-                response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
 
             if response_text:
                 try:
