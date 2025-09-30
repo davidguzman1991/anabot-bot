@@ -36,59 +36,51 @@ SITE_LABELS = {
 }
 
 RED_FLAG_TERMS = [
-    "dolor en el pecho",
-    "dificultad para respirar",
-    "disnea",
-    "ahogo",
-    "fiebre alta",
-    "desmayo",
-    "desvanecimiento",
-    "confusion",
-    "vision borrosa",
-    "sudor frio",
-    "hipoglucemia",
-    # Términos adicionales para cubrir todos los keywords críticos
-    "quemazon",
-    "hormigueo",
-    "descargas",
-    "frialdad",
-    "calentura",
-    "herida",
-    "dolor",
-    "fiebre",
+    "quemazón", "hormigueo", "descargas eléctricas", "dolor", "frialdad", "calentura", "fiebre", "herida"
 ]
 
-# Greeting/menu helpers
-GREETING_TERMS = [
-    "hola", "buenos dias", "buenas tardes", "buenas noches", "saludos", "buen dia", "buenas", "hello", "hi"
-]
 
-# Export helpers for testing
-def get_daypart_greeting(hour: int = None) -> str:
-    """Return a greeting based on hour (default: now local)."""
-    if hour is None:
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-        hour = datetime.now(tz=ZoneInfo("America/Guayaquil")).hour
-    if 5 <= hour < 13:
-        return "Buenos días"
-    elif 13 <= hour < 20:
-        return "Buenas tardes"
-    else:
-        return "Buenas noches"
+# --- Greeting/menu helpers actualizados ---
+import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+GREETING_TERMS = {"hola", "holi", "buenas", "buenos dias", "buenos días", "buenas tardes", "buenas noches", "hey", "qué tal", "que tal"}
+
+def normalize_text(text: str) -> str:
+    t = text or ""
+    t = t.lower().strip()
+    t = re.sub(r"\s+", " ", t)
+    t = t.replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u")
+    return t
 
 def is_greeting(text: str) -> bool:
-    norm = _normalize(text)
-    return any(term in norm for term in GREETING_TERMS)
+    t = normalize_text(text)
+    return any(term in t for term in GREETING_TERMS)
 
-def format_main_menu(options: list) -> str:
-    lines = []
-    for opt in options:
-        key = opt.get("key")
-        label = opt.get("label")
-        if key and label:
-            lines.append(f"{key}. {label}")
-    return "\n".join(lines)
+def get_daypart_greeting(hour: int = None) -> str:
+    if hour is None:
+        try:
+            hour = datetime.now(tz=ZoneInfo("America/Guayaquil")).hour
+        except Exception:
+            hour = datetime.now().hour
+    if hour < 12:
+        return "¡Buenos días 🌞!"
+    if 12 <= hour < 18:
+        return "¡Buenas tardes ☀️!"
+    return "¡Buenas noches 🌙!"
+
+def format_main_menu() -> str:
+    return (
+        "Soy Ana 🤖, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?  \n\n"
+        "1️⃣ Más información de servicios médicos  \n"
+        "2️⃣ Agendar cita médica  \n"
+        "3️⃣ Reagendar o cancelar  \n"
+        "4️⃣ Consultar cita médica  \n"
+        "5️⃣ Hablar con el Dr. Guzmán  \n\n"
+        "ℹ️ En cualquier momento puedes usar:  \n"
+        "0️⃣ Atrás · 9️⃣ Inicio"
+    )
 
 # Alias for test compatibility
 RED_FLAG_TERMS = RED_FLAG_TERMS

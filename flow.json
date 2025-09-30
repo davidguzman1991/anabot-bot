@@ -33,59 +33,39 @@
       "home": "9"
     }
   },
-  "start": "HOME",
+  "defaultStartNode": "SALUDO",
   "nodes": [
     {
-      "id": "HOME",
-      "type": "choice",
-      "text": "¡{saludo}! Soy Ana, asistente del Dr. David Guzman.\n\n¿En qué te ayudo hoy? Escribe el número de la opción (ej: 2).\n\n{main_menu}",
-      "options": [],
-      "on_enter_hooks": [
-        {
-          "hook": "red_flag_detector",
-          "args": ["{last_text}"],
-          "if_true_next": "RF_RED_FLAG"
-        },
-        {
-          "hook": "get_daypart_greeting",
-          "save_as": "saludo"
-        },
-        {
-          "hook": "format_main_menu",
-          "args": [
-            [
-              {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
-              {"key": "2", "label": "Mas informacion", "next": "INFO_SERVICIOS"},
-              {"key": "3", "label": "Precios", "next": "PRECIOS"},
-              {"key": "4", "label": "Ubicaciones", "next": "UBICACIONES"},
-              {"key": "5", "label": "Reagendar o cancelar", "next": "REA_DNI"},
-              {"key": "6", "label": "Portal del Paciente", "next": "PORTAL"},
-              {"key": "7", "label": "Contactar al Dr.", "next": "CONTACTO"}
-            ]
-          ],
-          "save_as": "main_menu"
-        }
-      ]
+      "id": "SALUDO",
+      "type": "text",
+      "text": "{saludo}\n\n{menu}",
+      "vars": ["saludo", "menu"],
+      "next": "MENU_PRINCIPAL"
     },
     {
       "id": "MENU_PRINCIPAL",
-      "type": "choice",
-      "text": "{main_menu}",
+      "type": "menu",
+      "text": "{menu}",
       "options": [
-        {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
-        {"key": "2", "label": "Mas informacion", "next": "INFO_SERVICIOS"},
-        {"key": "3", "label": "Precios", "next": "PRECIOS"},
-        {"key": "4", "label": "Ubicaciones", "next": "UBICACIONES"},
-        {"key": "5", "label": "Reagendar o cancelar", "next": "REA_DNI"},
-        {"key": "6", "label": "Portal del Paciente", "next": "PORTAL"},
-        {"key": "7", "label": "Contactar al Dr.", "next": "CONTACTO"}
-      ]
+        { "key": "1", "label": "Más información de servicios médicos", "next": "SERVICIOS_INFO" },
+        { "key": "2", "label": "Agendar cita médica", "next": "AGENDAR_CITA" },
+        { "key": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
+        { "key": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
+        { "key": "5", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
+      ],
+      "globals": { "back": "ATRAS", "home": "MENU_PRINCIPAL" }
     },
     {
       "id": "RF_RED_FLAG",
-      "type": "message",
-      "text": "Detecté síntomas de alarma. Por favor, acude a un centro de emergencia o llama al 911 si es urgente. ¿Deseas volver al menú principal?",
-      "next": "MENU_PRINCIPAL"
+      "type": "menu",
+      "text": "� Lamento lo que sientes.  \nPuedo ayudarte agendando una cita médica prioritaria.  \nSi los síntomas son muy intensos, recuerda que puedes acudir a una emergencia 🏥 o llamar al 911 📞.",
+      "options": [
+        { "key": "0", "label": "Atrás", "next": "ATRAS" },
+        { "key": "1", "label": "Agendar cita prioritaria", "next": "AGENDAR_CITA_PRIORITARIA" },
+        { "key": "2", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" },
+        { "key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL" }
+      ],
+      "globals": { "back": "ATRAS", "home": "MENU_PRINCIPAL" }
     },
     {
       "id": "RED_FLAG",
