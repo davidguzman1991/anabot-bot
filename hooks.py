@@ -47,7 +47,51 @@ RED_FLAG_TERMS = [
     "vision borrosa",
     "sudor frio",
     "hipoglucemia",
+    # Términos adicionales para cubrir todos los keywords críticos
+    "quemazon",
+    "hormigueo",
+    "descargas",
+    "frialdad",
+    "calentura",
+    "herida",
+    "dolor",
+    "fiebre",
 ]
+
+# Greeting/menu helpers
+GREETING_TERMS = [
+    "hola", "buenos dias", "buenas tardes", "buenas noches", "saludos", "buen dia", "buenas", "hello", "hi"
+]
+
+# Export helpers for testing
+def get_daypart_greeting(hour: int = None) -> str:
+    """Return a greeting based on hour (default: now local)."""
+    if hour is None:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        hour = datetime.now(tz=ZoneInfo("America/Guayaquil")).hour
+    if 5 <= hour < 13:
+        return "Buenos días"
+    elif 13 <= hour < 20:
+        return "Buenas tardes"
+    else:
+        return "Buenas noches"
+
+def is_greeting(text: str) -> bool:
+    norm = _normalize(text)
+    return any(term in norm for term in GREETING_TERMS)
+
+def format_main_menu(options: list) -> str:
+    lines = []
+    for opt in options:
+        key = opt.get("key")
+        label = opt.get("label")
+        if key and label:
+            lines.append(f"{key}. {label}")
+    return "\n".join(lines)
+
+# Alias for test compatibility
+RED_FLAG_TERMS = RED_FLAG_TERMS
 
 GYE_WINDOWS: Dict[int, List[Tuple[time, time]]] = {
     0: [(time(9, 0), time(12, 0)), (time(16, 0), time(20, 0))],
@@ -190,13 +234,48 @@ class Hooks:
         return (_now_local().date() + timedelta(days=1)).strftime("%d-%m-%Y")
 
     def red_flag_detector(self, text: str, *, ctx: Dict[str, Any]) -> bool:
+
         normalized = _normalize(text)
         if not normalized:
             return False
+        # Match any red flag term as substring, or if any word matches
         found = any(term in normalized for term in RED_FLAG_TERMS)
+        # Extra: also match if any word in text matches a red flag word
+        if not found:
+            words = set(normalized.split())
+            for term in RED_FLAG_TERMS:
+                if any(word in term for word in words):
+                    found = True
+                    break
         if found:
             ctx.setdefault("flags", {})["red_flag"] = True
         return found
+
+    def get_daypart_greeting(self, hour: int = None) -> str:
+        """Return a greeting based on hour (default: now local)."""
+        if hour is None:
+            hour = _now_local().hour
+        if 5 <= hour < 13:
+            return "Buenos días"
+        elif 13 <= hour < 20:
+            return "Buenas tardes"
+        else:
+            return "Buenas noches"
+
+    def is_greeting(self, text: str) -> bool:
+        """Detect if text is a greeting."""
+        norm = _normalize(text)
+        return any(term in norm for term in GREETING_TERMS)
+
+    def format_main_menu(self, options: list) -> str:
+        """Format a main menu from a list of options (dicts with key/label)."""
+        lines = []
+        for opt in options:
+            key = opt.get("key")
+            label = opt.get("label")
+            if key and label:
+                lines.append(f"{key}. {label}")
+        return "\n".join(lines)
 
     # ---------- Handoff ----------
     def handoff_to_human(self, platform: str, user_id: str, message: str, *, ctx: Dict[str, Any]) -> bool:
