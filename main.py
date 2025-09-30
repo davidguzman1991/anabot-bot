@@ -9,13 +9,14 @@ from typing import Any, Dict
 
 import httpx
 import psycopg2
-from . import db_utils
+import db_utils
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import get_settings
-from .flow_engine import FlowEngine
-from .session_store import FlowSessionStore
+from config import get_settings
+from flow_engine import FlowEngine
+from session_store import FlowSessionStore
+# FIX: imports relativos cambiados a absolutos para compatibilidad con Railway
 
 logger = logging.getLogger("anabot")
 logging.basicConfig(level=logging.INFO)

@@ -12,9 +12,9 @@ import psycopg2
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import get_settings
-from .flow_engine import FlowEngine
-from .session_store import FlowSessionStore
+from config import get_settings
+from flow_engine import FlowEngine
+from session_store import FlowSessionStore
 
 logger = logging.getLogger("anabot")
 logging.basicConfig(level=logging.INFO)
