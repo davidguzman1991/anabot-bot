@@ -1,0 +1,98 @@
+﻿Frase,Respuesta,Categoría
+deseo mas informacion,"¡Hola! Soy Ana, asistente del Dr. Guzmán 😊. ¿Qué info necesitas hoy: 💳 costo, 🕒 horarios, 📍 dirección o 📅 agendar cita?",saludo
+mas informacion,"¡Con gusto! ¿Te comparto costo, horarios, dirección o agendar cita? 🙂",saludo
+informacion,"¡Aquí para ayudarte! ¿Buscas costo, horarios, dirección o agendar cita? 🙌",saludo
+
+costo,"💳 **Costo de la consulta:** 45 USD. Incluye valoración nutricional, educación diabetológica, evaluación de pies/neuropatía, riesgo CV/renal y ECG cuando sea necesario. ¿Te comparto horarios o la dirección que te quede mejor? 🕒📍",costo
+cuanto vale,"💳 La consulta tiene un valor de **45 USD**. ⏱️ Dura ~60 min e incluye valoración integral. ¿Prefieres ver horarios o dirección? 🙂",costo
+cuanto cuesta,"💳 Son **45 USD** por consulta. ¿Te paso horarios o dirección? 🙌",costo
+precio de la consulta,"💳 **45 USD** por consulta. ¿Deseas que te envíe horarios o la dirección? 🙂",costo
+valor de la consulta,"💳 **45 USD**. Incluye evaluación completa y plan personalizado.",costo
+tarifa,"💳 La tarifa es **45 USD** por consulta.",costo
+
+horarios,"🕒 **Horarios (con cita previa):** L–V 08:00–12:00 y 16:00–19:30 | Sáb 09:00–16:00 | Dom solo emergencias. ¿Te ayudo a agendar? 📅",horarios
+que horarios tienen,"🕒 L–V 08:00–12:00 y 16:00–19:30. Sáb 09:00–16:00. Dom solo emergencias. ¿Quieres reservar? 🙂",horarios
+cuando atienden,"🕒 Atendemos con cita previa. ¿Te agendo en el horario que prefieras (mañana o tarde)?",horarios
+a que hora atienden,"🕒 L–V mañana/tarde, Sáb 09:00–16:00. ¿Deseas agendar? 📅",horarios
+disponibilidad,"🕒 Tenemos disponibilidad por la mañana y tarde. ¿Qué día te viene bien?",horarios
+
+direccion,"¡Claro, con mucho gusto! 🙌 Gracias por tu interés. Para ayudarte mejor, ¿prefieres ser atendid@ en **Guayaquil** o en **Milagro**?",direccion_ambigua
+ubicacion,"Gracias por escribirnos 😊. ¿Te queda mejor **Guayaquil** o **Milagro**?",direccion_ambigua
+donde quedan,"Con gusto te indico. ¿Prefieres **Guayaquil** o **Milagro**?",direccion_ambigua
+donde es,"¿Deseas atención en **Guayaquil** o **Milagro**? Así te envío la dirección exacta.",direccion_ambigua
+de donde son,"Atendemos en **Guayaquil** y **Milagro**. ¿Cuál prefieres para pasarte la dirección?",direccion_ambigua
+como llegar,"¿Para **Guayaquil** o **Milagro**? Te comparto el pin de GPS. 🗺️",direccion_ambigua
+en donde atienden,"¿En **Guayaquil** o **Milagro**? Te envío la ubicación exacta. 📍",direccion_ambigua
+donde estan,"¿Prefieres **Guayaquil** o **Milagro**?",direccion_ambigua
+quedan por,"¿Buscas atención en **Guayaquil** o **Milagro**?",direccion_ambigua
+quedan en,"¿Te queda mejor **Guayaquil** o **Milagro**?",direccion_ambigua
+queda por,"¿Sería en **Guayaquil** o **Milagro**?",direccion_ambigua
+queda en,"¿En **Guayaquil** o **Milagro**?",direccion_ambigua
+
+guayaquil,"📍 **Guayaquil**: Hospital de Especialidades de la Ciudad (Ant. Clínica Kennedy Alborada), Torre Sur, Consultorio 204. 🗺️ GPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7. ¿Deseas agendar en esta sede? 📅",direccion_gye
+direccion guayaquil,"📍 **Guayaquil**: Hospital de Especialidades (Torre Sur, Cons. 204). 🗺️ GPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7. ¿Te ayudo a reservar?",direccion_gye
+kennedy,"📍 **Guayaquil** (Kennedy/Alborada): Hospital de Especialidades, Torre Sur, Cons. 204. GPS arriba. ¿Agendamos? 🙂",direccion_gye
+alborada,"📍 **Guayaquil** (Alborada): Hospital de Especialidades, Torre Sur, Cons. 204. 🗺️ GPS en el enlace. ¿Deseas cita?",direccion_gye
+
+milagro,"📍 **Milagro**: Clínica Santa Elena, Av. Cristóbal Colón y Gral. P. J. Montero. 🗺️ GPS: https://maps.app.goo.gl/dxZqqW91yS5JLF79A. ¿Deseas agendar en esta sede? 📅",direccion_mil
+direccion milagro,"📍 **Milagro**: Clínica Santa Elena (Av. Cristóbal Colón y Gral. P. J. Montero). 🗺️ GPS: https://maps.app.goo.gl/dxZqqW91yS5JLF79A. ¿Reservamos? 🙂",direccion_mil
+santa elena,"📍 **Milagro** (Clínica Santa Elena): Av. Cristóbal Colón y Gral. P. J. Montero. GPS arriba. ¿Te ayudo a agendar?",direccion_mil
+
+quiero agendar una cita,"📅 ¡Perfecto! Para agendar me ayudas con: **nombres y apellidos**, **Nº de cédula**, **fecha de nacimiento** y **correo** (opcional). Luego dime el **día** y si prefieres **mañana** o **tarde** para coordinar la hora exacta. 🙂",agendar
+como hago para agendar,"📅 Con gusto. Envíame: nombres/apellidos, cédula, fecha de nacimiento y correo (opcional). Después el **día** + **mañana/tarde**.",agendar
+necesito una cita,"📅 Te ayudo a reservar. ¿Me compartes tus datos (nombres, cédula, fecha de nacimiento y correo si tienes)? Luego día y **mañana/tarde**.",agendar
+reservar cita,"📅 De acuerdo. Envíame tus datos y elige **día** + **mañana/tarde** para coordinar hora exacta. 🙌",agendar
+sacar cita,"📅 Listo. Compárteme tus datos y tu disponibilidad (mañana/tarde).",agendar
+
+es una emergencia,"⚠️ Si es **emergencia**, puedo ayudarte a agendar prioridad o comunicarte con el Dr. Guzmán al **0962062122**. ¿Cómo prefieres proceder?",urgencias
+tengo una emergencia,"⚠️ Entendido. ¿Deseas que llame el Dr. Guzmán (**0962062122**) o prefieres agendar prioridad ahora?",urgencias
+urgente,"⚠️ Puedo conectarte con el Dr. (**0962062122**) o agendarte de inmediato. Dime qué necesitas.",urgencias
+
+gracias,"¡Gracias a ti por escribirnos! 🤗 ¿Te gustaría recibir **consejos breves** y prácticos para el manejo de tu diabetes (1 por vez)?",agradecer
+ok gracias,"¡Con gusto! 🙌 ¿Te envío **tips útiles** para tu cuidado diario?",agradecer
+solo consultaba,"¡Gracias por tu interés! ¿Quieres que te comparta **un tip corto** de salud para diabetes?",agradecer
+solo estaba mirando,"¡Perfecto! Si deseas, te envío **un consejo breve** para tu cuidado. ¿Te gustaría?",agradecer
+no por ahora,"¡Listo! Quedo atenta si más adelante deseas agendar o tienes otra consulta. 🙌",cierre
+no gracias,"¡Entendido! Aquí estaré para ayudarte cuando lo necesites. 🙂",cierre
+si,"¡Genial! Te enviaré un tip breve ahora mismo. 👍",tips_si
+claro,"¡Perfecto! Aquí va un tip práctico. 🙌",tips_si
+me gustaria,"¡Con gusto! Te comparto un consejo útil. 🙂",tips_si
+me duele,"Siento mucho ese malestar 🤍. Para orientarnos mejor, ¿del **1 al 10** cuánto duele y **desde cuándo** lo sientes? Estás en el lugar preciso; podemos ayudarte a **mejorar tu calidad de vida**. Si deseas, puedo **contactar al Dr. Guzmán** para que revise tu caso a la brevedad.",dolor
+me esta doliendo,"Lamento lo que estás pasando. ¿Podrías decirme del **1 al 10** cuánto duele y **desde cuándo**? En personas con diabetes, el dolor puede ser crónico y requiere manejo específico bajo **supervisión médica**. Puedo **trasladar tu caso** al Dr. Guzmán.",dolor
+me duele mucho,"Entiendo, debe ser muy incómodo 😔. ¿Cuánto dirías que duele del **1 al 10** y **desde cuándo**? Estás en el lugar correcto para recibir ayuda. Si deseas, **contacto al Dr. Guzmán** ahora mismo.",dolor
+duele,"Gracias por contarlo. ¿Del **1 al 10** cuánto duele? ¿Y **desde cuándo**? En diabetes a veces se requiere manejo **específico**. Puedo **enviar tu caso** al Dr. Guzmán.",dolor
+me duelen,"Gracias por compartirlo. ¿En una escala del **1 al 10** cuánto duele y **desde cuándo**? Llegaste al lugar correcto; el Dr. Guzmán puede ayudar. Si gustas, **le paso tu mensaje**.",dolor
+adolorido,"Lamento esa molestia. Para entender mejor: ¿**intensidad 1–10** y **desde cuándo**? El dolor en diabetes suele ser crónico y requiere manejo **especializado**. ¿Quieres que **contacte al Dr. Guzmán**?",dolor
+adolorida,"Siento que te sientas así 😞. ¿Qué **intensidad (1–10)** tiene y **desde cuándo**? Podemos ayudarte a **mejorar tu calidad de vida**. Puedo **trasladar tu caso** al Dr. Guzmán.",dolor
+tengo punzadas,"Gracias por contarlo. ¿Las punzadas serían **cuánto del 1–10** y **desde cuándo**? En diabetes, a veces se requiere manejo específico con el médico. Si deseas, **le informo** al Dr. Guzmán.",dolor
+punzon,"Gracias por avisar. ¿Podrías decirme **intensidad 1–10** y **desde cuándo**? Estamos para ayudarte. ¿Te gustaría que **contacte al Dr. Guzmán**?",dolor
+ardor,"Entiendo el ardor; suele ser muy molesto 😟. ¿**1–10** y **desde cuándo**? En diabetes puede requerir manejo **específico**. Puedo **enviar tu caso** al Dr. Guzmán.",dolor
+me arde,"Gracias por compartirlo. ¿Del **1 al 10** cuánto arde y **desde cuándo**? Llegaste al lugar preciso; podemos ayudarte. ¿Deseas que **contacte al Dr.**?",dolor
+quemazon,"Lamento esa **quemazón**. ¿**Intensidad 1–10** y **desde cuándo**? La medicina convencional suele ser insuficiente; se requiere manejo **médico**. Puedo **trasladarlo** al Dr. Guzmán.",dolor
+quemazón,"Comprendo esa sensación. ¿**1–10** y **desde cuándo**? Estamos para ayudarte y **mejorar tu calidad de vida**. ¿Te contacto con el Dr. Guzmán?",dolor
+hormigueo,"Gracias por contarlo. ¿Ese hormigueo es constante? ¿**Desde cuándo**? En diabetes puede corresponder a neuropatía. Puedo **enviar tu caso** al Dr. Guzmán para orientarte.",clinico
+hormigueos,"Entiendo. ¿Son frecuentes? ¿**Desde cuándo**? A veces requiere manejo específico. ¿Quieres que **lo revise el Dr. Guzmán**?",clinico
+entumecimiento,"Gracias por compartirlo. ¿**Desde cuándo** lo notas y en qué zona? Puedo **trasladar tu caso** al Dr. Guzmán para ayudarte.",clinico
+calambre,"Suele ser muy molesto. ¿Ocurre de noche o al caminar? ¿**Desde cuándo**? Si deseas, **contacto al Dr.** para orientarte.",clinico
+calambres,"Entiendo; ¿cada cuánto aparecen y **desde cuándo**? Estamos para ayudarte. Puedo **enviar tu caso** al Dr. Guzmán.",clinico
+dolor pies,"Gracias por contarlo. ¿**1–10** y **desde cuándo**? En personas con diabetes puede requerir manejo **especializado**. ¿Deseas que **lo vea el Dr.**?",dolor
+dolor manos,"Lamento esa molestia. ¿**1–10** y **desde cuándo**? Podemos ayudarte a **mejorar tu calidad de vida**. ¿Te contacto con el Dr. Guzmán?",dolor
+ardor pies,"Entiendo ese ardor. ¿**1–10** y **desde cuándo**? En ocasiones requiere manejo específico. Puedo **trasladar tu caso** al Dr. Guzmán.",dolor
+ardor manos,"Gracias por contarlo. ¿**1–10** y **desde cuándo**? Si deseas, **contacto al Dr.** para ayudarte.",dolor
+me quema,"Comprendo; la sensación de quemar es muy incómoda. ¿**1–10** y **desde cuándo**? Estamos para ayudarte. ¿Quieres que **lo revise el Dr. Guzmán**?",dolor
+me arde mucho,"Lamento esa intensidad 😣. ¿**1–10** y **desde cuándo**? Llegaste al lugar adecuado; podemos ayudarte. Puedo **contactar al Dr.**",dolor
+
+glucosa baja,"Podría ser **hipoglucemia**. Primero, si puedes, **mídete** la glucosa. Si está **<70 mg/dL** o tienes **frialdad, temblor/palpitaciones, intranquilidad o debilidad**: toma **un vaso de agua con 3 cucharadas de azúcar**, espera **15 min** y **vuelve a medir**. Si sigues <70 o con síntomas, **repite**. Luego come algo con carbohidratos para mantener el nivel. Si los episodios son frecuentes, conviene evaluar con el Dr. Guzmán. 🔒 *No indicaré nombres de medicamentos por este medio.*",hipo
+hipoglucemia,"Entiendo. **Mídete** la glucosa si puedes. Si está **<70 mg/dL** o presentas síntomas (frialdad, temblor/palpitaciones, intranquilidad, debilidad): toma **un vaso de agua con 3 cucharadas de azúcar**, espera **15 min** y **vuelve a medir**. Repite si es necesario y luego ingiere carbohidratos. Si es recurrente, **lo vemos con el Dr.**",hipo
+baja de azucar,"Podría ser **hipoglucemia**. **Mídete** y si <70 o con síntomas: **agua + 3 cucharadas de azúcar**, espera **15 min**, vuelve a medir. Repite si hace falta y luego come algo con carbohidratos. Si ocurre seguido, revisamos con el Dr. Guzmán.",hipo
+me dio hipo,"Gracias por avisar. Por seguridad: **mídete**; si **<70** o con síntomas: **agua + 3 cucharadas de azúcar**, espera **15 min**, vuelve a medir. Repite si es necesario y luego carbohidratos. Si se repite, lo **evaluamos con el Dr.**",hipo
+tengo frialdad y palpitaciones,"Es compatible con **glucosa baja**. Si puedes, **mídete**; si **<70** o con esos síntomas: **un vaso de agua con 3 cucharadas de azúcar**, espera **15 min** y **vuelve a medir**. Repite si hace falta y luego carbohidratos. Si es recurrente, **lo ve el Dr.**",hipo
+
+tengo fiebre,"Gracias por contarlo. ¿De cuántos °C es y **desde cuándo**? Si es **muy alta** o se acompaña de **dolor en el pecho**, **dificultad para respirar** o **desmayo**, sugiere **urgencia** y/o llamar al **0962062122**. Puedo **trasladar tu caso** al Dr. Guzmán.",flags
+me desmaye,"⚠️ Lo lamento. Un **desmayo** amerita evaluación urgente. Te sugiero buscar **atención inmediata** y/o comunicarte con el Dr. al **0962062122**.",flags
+tengo dificultad para respirar,"⚠️ Por seguridad, sugiere **atención urgente**. También puedes llamar al Dr. al **0962062122**. Si quieres, **traslado tu caso**.",flags
+
+precio,"Con mucho gusto podemos ayudarle. 💳 **Valor:** 45 USD. ⏱️ ~60 min. Incluye evaluación integral (nutrición, educación diabetológica, pies/neuropatía, riesgo CV/renal y ECG cuando sea necesario). ¿Le comparto horarios o dirección?",costo
+horario,"Con mucho gusto podemos ayudarle. 🕒 **Horarios:** L–V 08:00–12:00 y 16:00–19:30 · Sáb 09:00–16:00 · Dom solo emergencias. ¿Desea agendar?",horarios
+ubicacion,"Con mucho gusto podemos ayudarle. Para enviarle la dirección exacta, ¿prefiere **Guayaquil** o **Milagro**?",direccion
+direccion,"Con mucho gusto podemos ayudarle. ¿Desea atención en **Guayaquil** o **Milagro** para compartirle el GPS exacto?",direccion
