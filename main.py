@@ -1,3 +1,4 @@
+from utils.idempotency import mark_processed, is_processed
 from __future__ import annotations
 
 import asyncio
@@ -237,7 +238,11 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
         for message in messages:
             from_number = message.get("from")
             msg_type = message.get("type")
-            if not from_number:
+            message_id = message.get("id") or message.get("message_id")
+            if not from_number or not message_id:
+                continue
+            # Idempotencia: si ya procesado, no responder
+            if is_processed(message_id, "wa"):
                 continue
             user_text = ""
             if msg_type == "text":
@@ -253,15 +258,10 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             except Exception as e:
                 logger.exception("WhatsApp handle_text failed")
                 response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
-                db_utils.save_response(from_number, response_text, "wa")
-            else:
-                db_utils.save_response(from_number, response_text, "wa")
-                try:
-                    await wa_send_text(from_number, response_text)
-                except Exception:
-                    logger.exception("WhatsApp response delivery failed")
-
+            # Marcar como procesado solo si se va a responder
+            mark_processed(message_id, "wa")
             if response_text:
+                db_utils.save_response(from_number, response_text, "wa")
                 try:
                     await wa_send_text(from_number, response_text)
                 except Exception:
@@ -307,10 +307,15 @@ async def process_telegram_update(payload: Dict[str, Any]) -> None:
         chat_id = str(chat_id)
 
         user_text = (message.get("text") or "").strip()
+        message_id = str(message.get("message_id") or message.get("message_id") or message.get("message_id"))
         preview = user_text.replace("\n", " ")[:120]
         logger.info("TG incoming user=%s len=%s preview=%s", chat_id, len(user_text), preview)
 
+        # Idempotencia: si ya procesado, no responder
+        if not message_id or is_processed(message_id, "tg"):
+            return
         response = await handle_text(user_text, platform="telegram", user_id=chat_id)
+        mark_processed(message_id, "tg")
         if response:
             await tg_send_text(chat_id, response)
     except Exception:

@@ -1,3 +1,28 @@
+from hooks import reset_to_main, Hooks
+import types
+
+def test_any_input_routes_to_main_menu():
+    session = {"is_new": True}
+    h = Hooks()
+    out = h.route_input(session, "hola")
+    assert "Soy Ana" in out and "1️⃣" in out
+    session = {"is_new": False, "state": None}
+    out2 = h.route_input(session, "x")
+    assert "Soy Ana" in out2 and "1️⃣" in out2
+
+def test_global_9_goes_home():
+    session = {"is_new": False, "state": "MENU_PRINCIPAL"}
+    h = Hooks()
+    out = h.route_input(session, "9")
+    assert "Soy Ana" in out
+
+def test_idempotency_blocks_duplicate():
+    from utils.idempotency import mark_processed, is_processed
+    mid = "testmsgid-123"
+    platform = "wa"
+    assert not is_processed(mid, platform)
+    mark_processed(mid, platform)
+    assert is_processed(mid, platform)
 
 
 import pytest

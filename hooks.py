@@ -1,6 +1,17 @@
 """Business hooks for AnaBot flow v6."""
+# --- Helper para forzar menú principal y limpiar sesión ---
+def reset_to_main(session):
+    session["state"] = "MENU_PRINCIPAL"
+    session["step"] = None
+    session.pop("en_proceso", None)
+    session.pop("flags", None)
+    from hooks import get_daypart_greeting, format_main_menu
+    saludo = get_daypart_greeting()
+    menu = format_main_menu()
+    return f"{saludo} 👋 Soy Ana, asistente virtual del Dr. David Guzmán.\n\n{menu}"
 
-from __future__ import annotations
+
+"""Business hooks for AnaBot flow v6."""
 
 import logging
 import unicodedata
@@ -172,6 +183,25 @@ def _site_label(code: str) -> str:
 
 @dataclass
 class Hooks:
+    # --- Router principal: fuerza menú y evita duplicados ---
+    def route_input(self, session, text):
+        from hooks import is_greeting, reset_to_main
+        t = (text or "").strip()
+        if session.get("is_new") or is_greeting(t) or not session.get("state") or session.get("state") not in {"MENU_PRINCIPAL", "RF_RED_FLAG"}:
+            return reset_to_main(session)
+        if t == "9":
+            return reset_to_main(session)
+        # Red flag detection
+        from hooks import RED_FLAG_TERMS, normalize_text
+        norm = normalize_text(t)
+        if any(term in norm for term in RED_FLAG_TERMS):
+            session["state"] = "RF_RED_FLAG"
+            return ("😟 *Señal de alerta (prioridad)*  \nLamento lo que sientes. Puedo ayudarte con una *cita prioritaria*.  "
+                    "Si los síntomas son intensos, acude a *emergencias* o llama al *911*.\n\n0️⃣ Atrás    1️⃣ Agendar prioritaria    2️⃣ Hablar con el Dr. Guzmán    9️⃣ Inicio")
+        # Fallback: si el estado no es válido, forzar menú
+        if session.get("state") not in {"MENU_PRINCIPAL", "RF_RED_FLAG"}:
+            return reset_to_main(session)
+        return None
     globals_cfg: Optional[Dict[str, Any]] = None
 
     def __post_init__(self) -> None:
