@@ -1,6 +1,7 @@
-from utils.idempotency import mark_processed, is_processed
+
 from __future__ import annotations
 
+# Standard library
 import asyncio
 import json
 import logging
@@ -8,16 +9,18 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
+# Third-party libraries
 import httpx
 import psycopg2
-import db_utils
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+# Internal imports
+import db_utils
+from utils.idempotency import mark_processed, is_processed
 from config import get_settings
 from flow_engine import FlowEngine
 from session_store import FlowSessionStore
-# FIX: imports relativos cambiados a absolutos para compatibilidad con Railway
 
 logger = logging.getLogger("anabot")
 logging.basicConfig(level=logging.INFO)
