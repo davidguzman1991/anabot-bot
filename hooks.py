@@ -29,10 +29,11 @@ async def inactivity_middleware(user_id: str, send_func, incoming_text: str) -> 
     session = get_session(user_id)
     now = datetime.now(timezone.utc)
     last_ts = session.get("last_activity_ts")
-    if last_ts:
-        last_dt = datetime.fromisoformat(last_ts)
-    else:
-        last_dt = now
+    # Si la sesión es nueva, solo actualiza el timestamp y no dispares cierre
+    if not last_ts or session.get("current_state") == "root":
+        update_session(user_id, last_activity_ts=now.isoformat())
+        return False
+    last_dt = datetime.fromisoformat(last_ts)
     delta = now - last_dt
     if delta >= timedelta(minutes=INACTIVITY_MINUTES):
         logger.info("WA: inactivity handled -> farewell+greeting")
@@ -89,27 +90,42 @@ def send_main_menu(session=None, saludo: str = None) -> str:
 # --- Panel de información de servicios médicos ---
 def build_info_servicios_message() -> str:
     return (
-        "🌟 *Mis servicios médicos tienen un valor de $45*  "
-        "\n⏱️ Duración aproximada: *60 minutos*\n\n"
-        "Durante la consulta realizamos:  "
-        "\n✅ *Electrocardiograma (ECG)*  "
-        "\n✅ *Asesoría nutricional + plan personalizado*  "
-        "\n✅ *Educación en diabetes (paciente y familia)*  "
-        "\n✅ *Examen de Neuropatía Diabética y pie diabético*  "
-        "\n✅ *Valoración de riesgo cardiovascular y renal*\n\n"
-        "📍 Atención previa cita en *Guayaquil* y *Milagro*\n\n"
-        "👉 Elige una opción:  "
-        "\n1️⃣ Dirección Guayaquil  "
-        "\n2️⃣ Dirección Milagro  "
-        "\n0️⃣ Atrás · 9️⃣ Inicio"
+        "🌟 *MÁS INFORMACIÓN DE SERVICIOS*\n\n"
+        "Mis servicios médicos tienen un valor de *$45*. Los cuales tienen una duración aproximada de *60 minutos*.\n\n"
+        "Durante la misma se realizan varias actividades como:\n"
+        "🟢 *Electrocardiograma (ECG)*\n"
+        "🟢 *Asesoría nutricional + plan personalizado*\n"
+        "🟢 *Educación en diabetes (paciente y familia)*\n"
+        "🟢 *Examen de Neuropatía Diabética y pie Diabético*\n"
+        "🟢 *Valoración de riesgo cardiovascular y renal*\n\n"
+        "Atención previa cita en *Guayaquil* y *Milagro*.\n\n"
+        "A continuación, elige la opción correspondiente:\n"
+        "1️⃣ Dirección Guayaquil\n"
+        "2️⃣ Dirección Milagro\n"
+        "0️⃣ Atrás · 9️⃣ Inicio"
     )
 
 # --- Placeholders para direcciones ---
 def build_direccion_gye_message() -> str:
-    return "📍 Guayaquil: [tu dirección] · 0 Atrás · 9 Inicio"
+    return (
+        "🏥 *DIRECCIÓN GUAYAQUIL*\n"
+        "Hospital de Especialidades (Torre Sur), Consultorio 204\n"
+        "(antigua Clínica Kennedy Alborada)\n"
+        "📍 [Ver en Google Maps](https://maps.app.goo.gl/7J8v9V9RJHfxADfz7)\n\n"
+        "1️⃣ Agendar Cita Médica\n\n"
+        "0️⃣ Atrás\n"
+        "9️⃣ Inicio"
+    )
 
 def build_direccion_milagro_message() -> str:
-    return "📍 Milagro: [tu dirección] · 0 Atrás · 9 Inicio"
+    return (
+        "🏥 *DIRECCIÓN MILAGRO*\n"
+        "Clínica Santa Elena, Av Cristobal Colón y calle P.J. Montero\n"
+        "📍 [Ver en Google Maps](https://maps.app.goo.gl/7hh97D7JDcznqRSK9)\n\n"
+        "1️⃣ Agendar Cita Médica\n\n"
+        "0️⃣ Atrás\n"
+        "9️⃣ Inicio"
+    )
 """Business hooks for AnaBot flow v6."""
 
 # --- Helper para forzar menú principal y limpiar sesión ---
