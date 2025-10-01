@@ -228,6 +228,10 @@ async def wa_verify(
     raise HTTPException(status_code=403, detail="Verification failed")
 
 
+
+from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main
+from session_store import FlowSessionStore
+
 @app.post("/webhook/whatsapp")
 async def wa_webhook(request: Request) -> dict[str, bool]:
     body = await request.json()
@@ -252,23 +256,77 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                 user_text = message["text"].get("body", "")
             elif msg_type == "reaction":
                 user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
-            preview = user_text.replace("\n", " ")[:120]
-            logger.info("WA incoming user=%s len=%s preview=%s", from_number, len(user_text), preview)
+            text = (user_text or "").strip().lower()
+            preview = text.replace("\n", " ")[:120]
+            logger.info("WA incoming user=%s len=%s preview=%s", from_number, len(text), preview)
 
-            response_text = None
-            try:
-                response_text = await handle_text(user_text, platform="whatsapp", user_id=from_number)
-            except Exception as e:
-                logger.exception("WhatsApp handle_text failed")
-                response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
-            # Marcar como procesado solo si se va a responder
-            mark_processed(message_id, "wa")
-            if response_text:
-                db_utils.save_response(from_number, response_text, "wa")
+            # Cargar o crear sesión
+            session_store = SESSION_STORE
+            session_id = f"wa:{from_number}"
+            session = session_store.get(session_id)
+
+            # Forzar menú si saludo o estado no válido
+            forced_menu = False
+            if is_greeting(text) or session.get("state") not in {"MENU_PRINCIPAL", "RF_RED_FLAG"}:
+                reset_to_main(session)
+                session_store.set(session_id, session)
+                greeting = get_daypart_greeting()
+                menu = format_main_menu()
+                reply = f"{greeting} Soy Ana, asistente virtual del Dr. David Guzmán.\n\n{menu}"
+                logger.info(f"INFO:anabot:FORCED_MENU for user {from_number} text='{text}' state='{session.get('state')}'")
+                mark_processed(message_id, "wa")
+                db_utils.save_response(from_number, reply, "wa")
                 try:
-                    await wa_send_text(from_number, response_text)
+                    await wa_send_text(from_number, reply)
                 except Exception:
                     logger.exception("WhatsApp response delivery failed")
+                continue
+
+            # Red flag detection
+            if is_red_flag(text):
+                session["state"] = "RF_RED_FLAG"
+                session_store.set(session_id, session)
+                red_flag_msg = ("💛 Lamento lo que sientes. Puedo ayudarte con una cita prioritaria.\n"
+                                "Si los síntomas son muy intensos, acude a Emergencias o llama al 911.\n"
+                                "0️⃣ Atrás · 1️⃣ Agendar cita prioritaria · 2️⃣ Hablar con el Dr. Guzmán · 9️⃣ Inicio")
+                logger.info(f"INFO:anabot:RED_FLAG_DETECTED for user {from_number} text='{text}'")
+                mark_processed(message_id, "wa")
+                db_utils.save_response(from_number, red_flag_msg, "wa")
+                try:
+                    await wa_send_text(from_number, red_flag_msg)
+                except Exception:
+                    logger.exception("WhatsApp response delivery failed")
+                continue
+
+            # Menú principal router
+            if session.get("state") == "MENU_PRINCIPAL":
+                if text in {"0", "9", "1", "2", "3", "4", "5"}:
+                    if text == "0":
+                        # Atrás: si no hay stack, reimprime menú
+                        menu = format_main_menu()
+                        reply = f"{menu}"
+                        logger.info(f"INFO:anabot:MENU_OPTION 0 (atrás) for user {from_number}")
+                    elif text == "9":
+                        reset_to_main(session)
+                        session_store.set(session_id, session)
+                        menu = format_main_menu()
+                        reply = f"{menu}"
+                        logger.info(f"INFO:anabot:MENU_OPTION 9 (inicio) for user {from_number}")
+                    elif text in {"1", "2", "3", "4", "5"}:
+                        reply = "⚙️ En construcción"
+                        logger.info(f"INFO:anabot:MENU_OPTION {text} for user {from_number}")
+                    else:
+                        reply = format_main_menu()
+                    mark_processed(message_id, "wa")
+                    db_utils.save_response(from_number, reply, "wa")
+                    try:
+                        await wa_send_text(from_number, reply)
+                    except Exception:
+                        logger.exception("WhatsApp response delivery failed")
+                    continue
+
+            # Si no entró por ninguna de las anteriores, NO llamar router legacy
+            # (no llamar handle_text ni lógica de DNI)
 
         if statuses:
             logger.info("WA statuses: %s", json.dumps(statuses)[:200])
