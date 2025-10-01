@@ -1,8 +1,79 @@
+# --- Inactivity constants ---
+INACTIVITY_MINUTES = 20
+
+# --- Greeting/menu helpers actualizados ---
+def get_main_menu_text() -> str:
+    return (
+        "1️⃣ Más información de servicios médicos\n"
+        "2️⃣ Agendar cita médica\n"
+        "3️⃣ Reagendar o cancelar\n"
+        "4️⃣ Consultar cita médica\n"
+        "5️⃣ Hablar con el Dr. Guzmán\n"
+        "\nℹ️ En cualquier momento puedes usar:\n0️⃣ Atrás · 9️⃣ Inicio"
+    )
+
+def send_greeting_with_menu(user_id: str, send_func) -> None:
+    # Enviar saludo + menú SIEMPRE juntos
+    send_func(user_id, compose_greeting())
+    send_func(user_id, format_main_menu())
+# --- Inactivity middleware for incoming messages ---
+from session_store import get_session, update_session, reset_session
+from datetime import datetime, timezone, timedelta
+
+def inactivity_middleware(user_id: str, send_func, incoming_text: str) -> bool:
+    session = get_session(user_id)
+    now = datetime.now(timezone.utc)
+    last_ts = session.get("last_activity_ts")
+    if last_ts:
+        last_dt = datetime.fromisoformat(last_ts)
+    else:
+        last_dt = now
+    delta = now - last_dt
+    if delta >= timedelta(minutes=INACTIVITY_MINUTES):
+        # Send despedida
+        send_func(user_id, "Agradecemos su interés en nuestros servicios médicos.\nSu sesión ha expirado por inactividad de 20 minutos.\nDeseamos que tenga un excelente día y estaremos atentos a su próximo mensaje.")
+        reset_session(user_id)
+        send_greeting_with_menu(user_id, send_func)
+        update_session(user_id, has_greeted=True, current_state="root", last_activity_ts=now.isoformat())
+        return True  # Stop further processing
+    else:
+        if not session.get("has_greeted", False):
+            send_greeting_with_menu(user_id, send_func)
+            update_session(user_id, has_greeted=True)
+            update_session(user_id, last_activity_ts=now.isoformat())
+            return True  # Stop further processing
+        update_session(user_id, last_activity_ts=now.isoformat())
+    return False  # Continue normal routing
+def handle_menu_routing(user_id: str, incoming_text: str, send_func):
+    session = get_session(user_id)
+    text = (incoming_text or "").strip()
+    if text == "9":
+        update_session(user_id, current_state="root")
+        send_func(user_id, get_main_menu_text())
+        return
+    if text == "1":
+        update_session(user_id, current_state="info_servicios")
+        panel = (
+            "🌟 *Mis servicios médicos tienen un valor de $45*\n"
+            "⏱️ *Duración aproximada:* 60 minutos\n\n"
+            "*Durante la consulta realizamos:*\n"
+            "✅ Electrocardiograma (ECG)\n"
+            "✅ Asesoría nutricional + plan personalizado\n"
+            "✅ Educación en diabetes (paciente y familia)\n"
+            "✅ Examen de Neuropatía Diabética y pie diabético\n"
+            "✅ Valoración de riesgo cardiovascular y renal\n\n"
+            "📍 *Atención previa cita en Guayaquil y Milagro*\n\n"
+            "👉 *Elige una opción:*\n"
+            "1️⃣ Dirección Guayaquil\n"
+            "2️⃣ Dirección Milagro\n"
+            "0️⃣ Atrás · 9️⃣ Inicio"
+        )
+        send_func(user_id, panel)
+        return
+    # ...existing code for other transitions...
 # --- Greeting composition helpers ---
 def compose_greeting(session=None) -> str:
-    """Devuelve el saludo inicial completo solo si no se ha saludado antes."""
-    if session is not None and session.get("has_greeted"):
-        return ""
+    # Saludo único con tu copy final
     saludo = get_daypart_greeting()
     return f"{saludo} Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?"
 
@@ -150,14 +221,14 @@ def get_daypart_greeting(hour: int = None) -> str:
     return "¡Buenas noches 🌙!"
 
 def format_main_menu() -> str:
+    # SOLO el menú, sin “Soy Ana…”
     return (
-        "Soy Ana 🤖, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?  \n\n"
-        "1️⃣ Más información de servicios médicos  \n"
-        "2️⃣ Agendar cita médica  \n"
-        "3️⃣ Reagendar o cancelar  \n"
-        "4️⃣ Consultar cita médica  \n"
-        "5️⃣ Hablar con el Dr. Guzmán  \n\n"
-        "ℹ️ En cualquier momento puedes usar:  \n"
+        "1️⃣ Más información de servicios médicos\n"
+        "2️⃣ Agendar cita médica\n"
+        "3️⃣ Reagendar o cancelar\n"
+        "4️⃣ Consultar cita médica\n"
+        "5️⃣ Hablar con el Dr. Guzmán\n\n"
+        "ℹ️ En cualquier momento puedes usar:\n"
         "0️⃣ Atrás · 9️⃣ Inicio"
     )
 

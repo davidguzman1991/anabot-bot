@@ -232,7 +232,7 @@ async def wa_verify(
 
 
 
-from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main, compose_greeting
+from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main, compose_greeting, inactivity_middleware, send_greeting_with_menu
 from session_store import FlowSessionStore
 
 @app.post("/webhook/whatsapp")
@@ -268,22 +268,32 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             session_id = f"wa:{from_number}"
             session = session_store.get(session_id)
 
-            # Forzar saludo único si saludo o estado no válido
+            # Llamar al middleware de inactividad: puede enviar despedida y reiniciar
+            try:
+                handled = inactivity_middleware(from_number, wa_send_text, text)
+                if handled:
+                    mark_processed(message_id, "wa")
+                    continue  # ya se envió despedida + saludo+menú
+            except Exception:
+                logger.exception("Inactivity middleware failed")
+
+            # Forzar MENÚ PRINCIPAL correctamente (sin duplicar “Soy Ana…”)
             if is_greeting(text) or session.get("state") not in {"MENU_PRINCIPAL", "RF_RED_FLAG"}:
                 if not session.get("has_greeted"):
-                    reply = compose_greeting(session)
+                    try:
+                        send_greeting_with_menu(from_number, wa_send_text)
+                    except Exception:
+                        logger.exception("WhatsApp delivery failed (greeting+menu)")
                     session["has_greeted"] = True
                 else:
-                    reply = format_main_menu()
+                    try:
+                        await wa_send_text(from_number, format_main_menu())
+                    except Exception:
+                        logger.exception("WhatsApp delivery failed (menu)")
                 reset_to_main(session)
                 session_store.set(session_id, session)
-                logger.info(f"INFO:anabot:FORCED_MENU for user {from_number} text='{text}' state='{session.get('state')}'")
+                logger.info("INFO:anabot:FORCED_MENU user=%s text='%s' state='%s'", from_number, text, session.get("state"))
                 mark_processed(message_id, "wa")
-                db_utils.save_response(from_number, reply, "wa")
-                try:
-                    await wa_send_text(from_number, reply)
-                except Exception:
-                    logger.exception("WhatsApp response delivery failed")
                 continue
 
             # Red flag detection

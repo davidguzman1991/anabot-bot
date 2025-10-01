@@ -15,12 +15,16 @@ from config import get_settings
 _SETTINGS = get_settings()
 _DATABASE_URL = _SETTINGS.DATABASE_URL
 
+from datetime import timezone
+
 DEFAULT_SESSION: Dict[str, Any] = {
+    "current_state": "root",
+    "has_greeted": False,
+    "last_activity_ts": datetime.now(timezone.utc).isoformat(),
     "state": "HOME",
     "stack": [],
     "payload": {},
     "patient_id": None,
-    "has_greeted": False,
     "engine_state": {
         "node": "HOME",
         "history": [],
@@ -30,6 +34,24 @@ DEFAULT_SESSION: Dict[str, Any] = {
         "last_activity": None,
     },
 }
+def get_session(user_id: str) -> Dict[str, Any]:
+    """Get or create a session for a user_id (phone)."""
+    # For this implementation, channel is 'wa' (WhatsApp) by default
+    return load_session("wa", user_id)
+
+def update_session(user_id: str, **kwargs) -> None:
+    """Update session for user_id with given fields."""
+    session = get_session(user_id)
+    session.update(kwargs)
+    save_session("wa", user_id, session)
+
+def reset_session(user_id: str) -> None:
+    """Reset session for user_id: has_greeted=False, current_state='root', last_activity_ts=now()."""
+    session = get_session(user_id)
+    session["has_greeted"] = False
+    session["current_state"] = "root"
+    session["last_activity_ts"] = datetime.now(timezone.utc).isoformat()
+    save_session("wa", user_id, session)
 
 
 def _conn():

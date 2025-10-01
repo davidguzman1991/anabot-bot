@@ -33,127 +33,49 @@
       "home": "9"
     }
   },
-  "defaultStartNode": "SALUDO",
+  "defaultStartNode": "MENU_PRINCIPAL",
   "nodes": [
-    {
-      "id": "SALUDO",
-      "type": "text",
-      "text": "{saludo}",
-      "vars": ["saludo"],
-      "next": "MENU_PRINCIPAL"
-    },
-    {
-      "id": "MENU_PRINCIPAL",
-      "type": "menu",
-      "text": "1️⃣ Más información de servicios médicos\n2️⃣ Agendar cita médica\n3️⃣ Reagendar o cancelar\n4️⃣ Consultar cita médica\n5️⃣ Hablar con el Dr. Guzmán\n\n0️⃣ Atrás · 9️⃣ Inicio",
-      "options": [
-        { "key": "1", "label": "Más información de servicios médicos", "next": "INFO_SERVICIOS" },
-        { "key": "2", "label": "Agendar cita médica", "next": "AGENDAR_CITA" },
-        { "key": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
-        { "key": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
-        { "key": "5", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
-      ],
-      "globals": { "back": "ATRAS", "home": "MENU_PRINCIPAL" }
-    },
-    {
-      "id": "INFO_SERVICIOS",
-      "type": "choice",
-      "text": "🌟 *Mis servicios médicos tienen un valor de $45*\n⏱️ *Duración aproximada:* 60 minutos\n\n*Durante la consulta realizamos:*\n✅ Electrocardiograma (ECG)\n✅ Asesoría nutricional + plan personalizado\n✅ Educación en diabetes (paciente y familia)\n✅ Examen de Neuropatía Diabética y pie diabético\n✅ Valoración de riesgo cardiovascular y renal\n\n📍 *Atención previa cita en Guayaquil y Milagro*\n\n👉 *Elige una opción:*\n1️⃣ Dirección Guayaquil\n2️⃣ Dirección Milagro\n\n0️⃣ Atrás · 9️⃣ Inicio",
-      "options": [
-        { "key": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
-        { "key": "2", "label": "Dirección Milagro", "next": "DIRECCION_MIL" },
-        { "key": "0", "label": "Atrás", "next": "MENU_PRINCIPAL" },
-        { "key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL" }
-      ]
-    },
-    {
-      "id": "DIRECCION_GYE",
-      "type": "text",
-      "text": "📍 *Guayaquil*: Hospital de Especialidades, Torre Sur, consultorio 204 (antigua Clínica Kennedy Alborada). Atención previa cita.",
-      "next": "INFO_SERVICIOS"
-    },
+        {
+          "id": "MENU_PRINCIPAL",
+          "type": "menu",
+          "text": "1️⃣ Más información de servicios médicos\n2️⃣ Agendar cita médica\n3️⃣ Reagendar o cancelar\n4️⃣ Consultar cita médica\n5️⃣ Hablar con el Dr. Guzmán\n\n0️⃣ Atrás · 9️⃣ Inicio",
+          "options": [
+            { "key": "1", "label": "Más información de servicios médicos", "next": "INFO_SERVICIOS" },
+            { "key": "2", "label": "Agendar cita médica", "next": "AGENDAR_CITA" },
+            { "key": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
+            { "key": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
+            { "key": "5", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
+          ],
+          "globals": { "back": "ATRAS", "home": "MENU_PRINCIPAL" }
+        },
+        {
+          "id": "INFO_SERVICIOS",
+          "type": "choice",
+          "text": "🌟 *Mis servicios médicos tienen un valor de $45*\n⏱️ *Duración aproximada:* 60 minutos\n\n*Durante la consulta realizamos:*\n✅ Electrocardiograma (ECG)\n✅ Asesoría nutricional + plan personalizado\n✅ Educación en diabetes (paciente y familia)\n✅ Examen de Neuropatía Diabética y pie diabético\n✅ Valoración de riesgo cardiovascular y renal\n\n📍 *Atención previa cita en Guayaquil y Milagro*\n\n👉 *Elige una opción:*\n1️⃣ Dirección Guayaquil\n2️⃣ Dirección Milagro\n\n0️⃣ Atrás · 9️⃣ Inicio",
+          "options": [
+            { "key": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
+            { "key": "2", "label": "Dirección Milagro", "next": "DIRECCION_MIL" },
+            { "key": "0", "label": "Atrás", "next": "MENU_PRINCIPAL" },
+            { "key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL" }
+          ]
+        },
+        {
+          "id": "DIRECCION_GYE",
+          "type": "text",
+          "text": "📍 *Guayaquil*: Hospital de Especialidades, Torre Sur, consultorio 204 (antigua Clínica Kennedy Alborada). Atención previa cita.",
+          "next": "INFO_SERVICIOS"
+        },
+        {
+          "id": "DIRECCION_MIL",
+          "type": "text",
+          "text": "📍 *Milagro*: [tu dirección o referencia]. Atención previa cita.",
+          "next": "INFO_SERVICIOS"
+        },
     {
       "id": "DIRECCION_MIL",
       "type": "text",
       "text": "📍 *Milagro*: [tu dirección o referencia]. Atención previa cita.",
       "next": "INFO_SERVICIOS"
-    },
-    {
-      "id": "INFO_SERVICIOS",
-      "type": "choice",
-      "text": "🌟 *Mis servicios médicos tienen un valor de $45*  \n⏱️ Duración aproximada: *60 minutos*\n\nDurante la consulta realizamos:  \n✅ *Electrocardiograma (ECG)*  \n✅ *Asesoría nutricional + plan personalizado*  \n✅ *Educación en diabetes (paciente y familia)*  \n✅ *Examen de Neuropatía Diabética y pie diabético*  \n✅ *Valoración de riesgo cardiovascular y renal*\n\n📍 Atención previa cita en *Guayaquil* y *Milagro*\n\n👉 Elige una opción:  \n1️⃣ Dirección Guayaquil  \n2️⃣ Dirección Milagro  \n0️⃣ Atrás · 9️⃣ Inicio",
-      "options": [
-        { "key": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
-        { "key": "2", "label": "Dirección Milagro", "next": "DIRECCION_MILAGRO" },
-        { "key": "0", "label": "Atrás", "next": "MENU_PRINCIPAL" },
-        { "key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL" }
-      ]
-    },
-    {
-      "id": "DIRECCION_GYE",
-      "type": "text",
-      "text": "📍 Guayaquil: [tu dirección] · 0 Atrás · 9 Inicio",
-      "next": "INFO_SERVICIOS"
-    },
-    {
-      "id": "DIRECCION_MILAGRO",
-      "type": "text",
-      "text": "📍 Milagro: [tu dirección] · 0 Atrás · 9 Inicio",
-      "next": "INFO_SERVICIOS"
-    },
-    {
-      "id": "RF_RED_FLAG",
-      "type": "menu",
-      "text": "� Lamento lo que sientes.  \nPuedo ayudarte agendando una cita médica prioritaria.  \nSi los síntomas son muy intensos, recuerda que puedes acudir a una emergencia 🏥 o llamar al 911 📞.",
-      "options": [
-        { "key": "0", "label": "Atrás", "next": "ATRAS" },
-        { "key": "1", "label": "Agendar cita prioritaria", "next": "AGENDAR_CITA_PRIORITARIA" },
-        { "key": "2", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" },
-        { "key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL" }
-      ],
-      "globals": { "back": "ATRAS", "home": "MENU_PRINCIPAL" }
-    },
-    {
-      "id": "RED_FLAG",
-      "type": "choice",
-      "text": "Gracias por compartir tu mensaje. Recuerda que si presentas dolor en el pecho, falta de aire u otra senal de alarma es importante contactar a emergencias (911) de inmediato.\n\n?Quieres que agendemos una cita prioritaria con el Dr. Guzman?",
-      "options": [
-        {"key": "1", "label": "Si, agendar cita prioritaria", "next": "AGENDA_DNI"},
-        {"key": "9", "label": "Volver al inicio", "next": "HOME"}
-      ]
-    },
-    {
-      "id": "AGENDA_DNI",
-      "type": "input",
-      "text": "Para comenzar necesito tu cedula o pasaporte (6-20 caracteres, sin espacios):",
-      "validation": "dni",
-      "save_as": "agenda.dni",
-      "hooks": [
-        {
-          "hook": "patient.lookup",
-          "args": ["{agenda.dni}"],
-          "if_true_next": "AGENDA_EXISTE_RESUMEN",
-          "if_false_next": "AGENDA_NEW_NAME"
-        }
-      ]
-    },
-    {
-      "id": "AGENDA_EXISTE_RESUMEN",
-      "type": "choice",
-      "text": "Tengo registrado: {agenda.patient.summary}.\n\n?Deseas usar estos datos para tu cita?",
-      "options": [
-        {"key": "1", "label": "Si, continuar con estos datos", "next": "AGENDA_SEDE"},
-        {"key": "2", "label": "Actualizar mis datos", "next": "AGENDA_NEW_NAME"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
-      ]
-    },
-    {
-      "id": "AGENDA_NEW_NAME",
-      "type": "input",
-      "text": "Escribe tus nombres y apellidos completos:",
-      "validation": "dni",
-      "save_as": "agenda.full_name",
-      "next": "AGENDA_NEW_BIRTHDATE"
     },
     {
       "id": "AGENDA_NEW_BIRTHDATE",
