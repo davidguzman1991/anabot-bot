@@ -20,6 +20,7 @@ DEFAULT_SESSION: Dict[str, Any] = {
     "stack": [],
     "payload": {},
     "patient_id": None,
+    "has_greeted": False,
     "engine_state": {
         "node": "HOME",
         "history": [],
@@ -40,6 +41,8 @@ def _conn():
 def _ensure_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
     state = {**DEFAULT_SESSION}
     state.update({k: v for k, v in data.items() if k in state})
+    if "has_greeted" not in state:
+        state["has_greeted"] = False
 
     engine_state = data.get("engine_state") or {}
     merged_engine = {**DEFAULT_SESSION["engine_state"]}
@@ -79,6 +82,8 @@ def save_session(channel: str, user_key: str, state_dict: Dict[str, Any]) -> Non
     normalized["state"] = normalized.get("state") or normalized["engine_state"].get("node", "HOME")
     normalized["stack"] = normalized.get("stack") or normalized["engine_state"].get("history", [])
     normalized["payload"] = normalized.get("payload") or normalized["engine_state"].get("ctx", {})
+    if "has_greeted" not in normalized:
+        normalized["has_greeted"] = False
     now = datetime.now(timezone.utc)
 
     with _conn() as conn:

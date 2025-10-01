@@ -1,14 +1,14 @@
 # --- Greeting composition helpers ---
 def compose_greeting(session=None) -> str:
-    """Devuelve solo el saludo de día/tarde/noche, sin repetir presentación."""
-    return get_daypart_greeting()
+    """Devuelve el saludo inicial completo solo si no se ha saludado antes."""
+    if session is not None and session.get("has_greeted"):
+        return ""
+    saludo = get_daypart_greeting()
+    return f"{saludo} Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?"
 
 def send_main_menu(session=None, saludo: str = None) -> str:
-    """Concatena saludo (ya compuesto) + presentación + menú principal, sin duplicar presentación."""
-    if saludo is None:
-        saludo = compose_greeting(session)
-    menu = format_main_menu()
-    return f"{saludo} Soy Ana, asistente virtual del Dr. David Guzmán.\n\n{menu}"
+    """Devuelve solo el menú principal, sin saludo ni presentación."""
+    return format_main_menu()
 
 # --- Panel de información de servicios médicos ---
 def build_info_servicios_message() -> str:

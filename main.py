@@ -232,7 +232,7 @@ async def wa_verify(
 
 
 
-from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main
+from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main, compose_greeting
 from session_store import FlowSessionStore
 
 @app.post("/webhook/whatsapp")
@@ -268,14 +268,15 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             session_id = f"wa:{from_number}"
             session = session_store.get(session_id)
 
-            # Forzar menú si saludo o estado no válido
-            forced_menu = False
+            # Forzar saludo único si saludo o estado no válido
             if is_greeting(text) or session.get("state") not in {"MENU_PRINCIPAL", "RF_RED_FLAG"}:
+                if not session.get("has_greeted"):
+                    reply = compose_greeting(session)
+                    session["has_greeted"] = True
+                else:
+                    reply = format_main_menu()
                 reset_to_main(session)
                 session_store.set(session_id, session)
-                greeting = get_daypart_greeting()
-                menu = format_main_menu()
-                reply = f"{greeting} Soy Ana, asistente virtual del Dr. David Guzmán.\n\n{menu}"
                 logger.info(f"INFO:anabot:FORCED_MENU for user {from_number} text='{text}' state='{session.get('state')}'")
                 mark_processed(message_id, "wa")
                 db_utils.save_response(from_number, reply, "wa")
