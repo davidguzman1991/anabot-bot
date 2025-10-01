@@ -322,6 +322,7 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             # Menú principal router
             if session.get("state") == "MENU_PRINCIPAL":
                 if text in {"0", "9", "1", "2", "3", "4", "5"}:
+                    logger.debug(f"MENU_PRINCIPAL: user={from_number}, text={text}, state={session.get('state')}")
                     if text == "0":
                         menu = format_main_menu()
                         reply = f"{menu}"
@@ -339,7 +340,7 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                         reply = build_info_servicios_message()
                         session["state"] = "INFO_SERVICIOS"
                         session_store.set(session_id, session)
-                        logger.info(f"INFO:anabot:MENU_OPTION 1 (info servicios) for user {from_number}")
+                        logger.info(f"INFO:anabot:MENU_OPTION 1 (info servicios) for user {from_number}, state={session['state']}")
                     elif text == "2":
                         # Agendar cita médica
                         reply = "Por favor, ingrese su número de cédula (10 dígitos) o pasaporte:"
@@ -351,6 +352,7 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                         logger.info(f"INFO:anabot:MENU_OPTION {text} for user {from_number}")
                     else:
                         reply = format_main_menu()
+                    logger.debug(f"RESPUESTA: user={from_number}, reply={reply}, state={session.get('state')}")
                     mark_processed(message_id, "wa")
                     db_utils.save_response(from_number, reply, "wa")
                     try:
