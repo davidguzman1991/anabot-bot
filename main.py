@@ -288,7 +288,7 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             if is_greeting(text) or session.get("state") not in {"MENU_PRINCIPAL", "RF_RED_FLAG"}:
                 if not session.get("has_greeted"):
                     try:
-                        send_greeting_with_menu(from_number, wa_send_text)
+                        await send_greeting_with_menu(from_number, wa_send_text)
                     except Exception:
                         logger.exception("WhatsApp delivery failed (greeting+menu)")
                     session["has_greeted"] = True
