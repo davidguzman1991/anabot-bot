@@ -239,7 +239,7 @@ async def wa_verify(
 
 
 
-from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main, compose_greeting, inactivity_middleware, send_greeting_with_menu
+from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main, compose_greeting, inactivity_middleware, send_greeting_with_menu, build_info_servicios_message
 from session_store import FlowSessionStore
 
 @app.post("/webhook/whatsapp")
@@ -323,17 +323,30 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             if session.get("state") == "MENU_PRINCIPAL":
                 if text in {"0", "9", "1", "2", "3", "4", "5"}:
                     if text == "0":
-                        # Atrás: si no hay stack, reimprime menú
                         menu = format_main_menu()
                         reply = f"{menu}"
                         logger.info(f"INFO:anabot:MENU_OPTION 0 (atrás) for user {from_number}")
+                        session["state"] = "MENU_PRINCIPAL"
+                        session_store.set(session_id, session)
                     elif text == "9":
                         reset_to_main(session)
                         session_store.set(session_id, session)
                         menu = format_main_menu()
                         reply = f"{menu}"
                         logger.info(f"INFO:anabot:MENU_OPTION 9 (inicio) for user {from_number}")
-                    elif text in {"1", "2", "3", "4", "5"}:
+                    elif text == "1":
+                        # Más información de servicios
+                        reply = build_info_servicios_message()
+                        session["state"] = "INFO_SERVICIOS"
+                        session_store.set(session_id, session)
+                        logger.info(f"INFO:anabot:MENU_OPTION 1 (info servicios) for user {from_number}")
+                    elif text == "2":
+                        # Agendar cita médica
+                        reply = "Por favor, ingrese su número de cédula (10 dígitos) o pasaporte:"
+                        session["state"] = "AGENDAR_CITA_DNI"
+                        session_store.set(session_id, session)
+                        logger.info(f"INFO:anabot:MENU_OPTION 2 (agendar cita) for user {from_number}")
+                    elif text in {"3", "4", "5"}:
                         reply = "⚙️ En construcción"
                         logger.info(f"INFO:anabot:MENU_OPTION {text} for user {from_number}")
                     else:
@@ -345,6 +358,100 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                     except Exception:
                         logger.exception("WhatsApp response delivery failed")
                     continue
+
+            # Flujo de agendamiento de cita médica
+            if session.get("state") == "AGENDAR_CITA_DNI":
+                dni = text.strip()
+                # Validar cédula (10 dígitos) o pasaporte (alfanumérico)
+                paciente = None
+                if len(dni) == 10 and dni.isdigit():
+                    # Simulación de búsqueda: si el dni termina en 1, existe
+                    if dni.endswith("1"):
+                        paciente = {"nombre": "Juan Pérez"}  # Simulación, reemplaza por consulta real
+                # Si paciente existe, saltar a selección de día
+                if paciente:
+                    reply = (
+                        f"Usted es el paciente {paciente['nombre']}. Indique qué día desea ser atendido, por favor marque el número de las siguientes opciones:\n"
+                        "1. Hoy\n2. Mañana\n3. Otra fecha\n0. Atrás\n9. Inicio"
+                    )
+                    session["state"] = "AGENDAR_CITA_DIA"
+                    session["dni"] = dni
+                    session["nombre"] = paciente["nombre"]
+                    session_store.set(session_id, session)
+                    mark_processed(message_id, "wa")
+                    db_utils.save_response(from_number, reply, "wa")
+                    try:
+                        await wa_send_text(from_number, reply)
+                    except Exception:
+                        logger.exception("WhatsApp response delivery failed")
+                    continue
+                else:
+                    reply = "Escribir un nombre y dos apellidos (por ej: Maria Lopez Garcia)"
+                    session["state"] = "AGENDAR_CITA_NOMBRE"
+                    session["dni"] = dni
+                    session_store.set(session_id, session)
+                    mark_processed(message_id, "wa")
+                    db_utils.save_response(from_number, reply, "wa")
+                    try:
+                        await wa_send_text(from_number, reply)
+                    except Exception:
+                        logger.exception("WhatsApp response delivery failed")
+                    continue
+            if session.get("state") == "AGENDAR_CITA_NOMBRE":
+                nombre = text.strip()
+                reply = "Ayúdeme digitando su Fecha de nacimiento (DD–MM–AAAA) por ej: 20–06–1991"
+                session["state"] = "AGENDAR_CITA_FECHA"
+                session["nombre"] = nombre
+                session_store.set(session_id, session)
+                mark_processed(message_id, "wa")
+                db_utils.save_response(from_number, reply, "wa")
+                try:
+                    await wa_send_text(from_number, reply)
+                except Exception:
+                    logger.exception("WhatsApp response delivery failed")
+                continue
+            if session.get("state") == "AGENDAR_CITA_FECHA":
+                fecha = text.strip()
+                reply = "Ayúdeme proporcionando su número de contacto ya sea celular o whatsapp por ej: 09xxxxxxxx"
+                session["state"] = "AGENDAR_CITA_TELEFONO"
+                session["fecha_nacimiento"] = fecha
+                session_store.set(session_id, session)
+                mark_processed(message_id, "wa")
+                db_utils.save_response(from_number, reply, "wa")
+                try:
+                    await wa_send_text(from_number, reply)
+                except Exception:
+                    logger.exception("WhatsApp response delivery failed")
+                continue
+            if session.get("state") == "AGENDAR_CITA_TELEFONO":
+                telefono = text.strip()
+                reply = "Ayúdeme con una dirección de correo electrónico por ej: xxxxxxx@mail.com. En el caso de no tenerlo por favor escribir ninguno para seguir avanzando"
+                session["state"] = "AGENDAR_CITA_EMAIL"
+                session["telefono"] = telefono
+                session_store.set(session_id, session)
+                mark_processed(message_id, "wa")
+                db_utils.save_response(from_number, reply, "wa")
+                try:
+                    await wa_send_text(from_number, reply)
+                except Exception:
+                    logger.exception("WhatsApp response delivery failed")
+                continue
+            if session.get("state") == "AGENDAR_CITA_EMAIL":
+                email = text.strip()
+                reply = (
+                    "Indique qué día desea ser atendido, por favor marque el número de las siguientes opciones:\n"
+                    "1. Hoy\n2. Mañana\n3. Otra fecha\n0. Atrás\n9. Inicio"
+                )
+                session["state"] = "AGENDAR_CITA_DIA"
+                session["email"] = email
+                session_store.set(session_id, session)
+                mark_processed(message_id, "wa")
+                db_utils.save_response(from_number, reply, "wa")
+                try:
+                    await wa_send_text(from_number, reply)
+                except Exception:
+                    logger.exception("WhatsApp response delivery failed")
+                continue
 
             # Si no entró por ninguna de las anteriores, NO llamar router legacy
             # (no llamar handle_text ni lógica de DNI)
