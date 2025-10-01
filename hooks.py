@@ -1,3 +1,31 @@
+# --- Helpers para menú principal (stubs si faltan) ---
+def build_agendar_cita_menu() -> str:
+    return (
+        "🗓️ *Agendar cita médica*\n"
+        "Por favor, ingrese su número de cédula (10 dígitos) o pasaporte para continuar.\n"
+        "0️⃣ Atrás · 9️⃣ Inicio"
+    )
+
+def build_reagendar_menu() -> str:
+    return (
+        "🔄 *Reagendar o cancelar cita*\n"
+        "Por favor, indique el número de su cita o escriba 'ayuda' para asistencia.\n"
+        "0️⃣ Atrás · 9️⃣ Inicio"
+    )
+
+def build_consultar_cita_menu() -> str:
+    return (
+        "📅 *Consultar cita médica*\n"
+        "Por favor, indique el número de su cédula o pasaporte para consultar su cita.\n"
+        "0️⃣ Atrás · 9️⃣ Inicio"
+    )
+
+def build_hablar_con_doctor_message() -> str:
+    return (
+        "👨‍⚕️ *Hablar con el Dr. Guzmán*\n"
+        "Un asesor se pondrá en contacto contigo pronto.\n"
+        "0️⃣ Atrás · 9️⃣ Inicio"
+    )
 # --- Inactivity constants ---
 INACTIVITY_MINUTES = 20
 

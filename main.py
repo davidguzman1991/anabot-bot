@@ -1,3 +1,19 @@
+# --- Normalización de texto y extracción de dígitos para WhatsApp ---
+import re
+import unicodedata
+
+ZERO_WIDTH = {"\u200b", "\u200c", "\u200d", "\ufeff", "\u2060", "\u200e", "\u200f", "\u202a", "\u202b", "\u202c"}
+def normalize_user_text(raw: str) -> str:
+    if raw is None:
+        return ""
+    t = unicodedata.normalize("NFKC", raw)
+    for zw in ZERO_WIDTH:
+        t = t.replace(zw, "")
+    return t.strip()
+
+def extract_digits_key(t: str) -> str:
+    digits = re.sub(r"\D+", "", t)
+    return digits[:2] if digits else ""
 
 """
 Entrypoint principal para AnaBot.
@@ -266,7 +282,9 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                 user_text = message["text"].get("body", "")
             elif msg_type == "reaction":
                 user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
-            text = (user_text or "").strip().lower()
+            text_raw = user_text  # lo que llegue del webhook
+            text = normalize_user_text(text_raw)
+            key = extract_digits_key(text)
             preview = text.replace("\n", " ")[:120]
             logger.info("WA incoming user=%s len=%s preview=%s", from_number, len(text), preview)
 
@@ -284,7 +302,7 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             except Exception:
                 logger.exception("Inactivity middleware failed")
 
-            # Forzar MENÚ PRINCIPAL SOLAMENTE en el primer saludo (evitar resets agresivos)
+            # Solo primer saludo (evitar resets agresivos por estado no permitido)
             if is_greeting(text) and not session.get("has_greeted"):
                 try:
                     await send_greeting_with_menu(from_number, wa_send_text)
@@ -295,30 +313,21 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                 session_store.set(session_id, session)
                 mark_processed(message_id, "wa")
                 continue
-            # Manejo de flujo dentro de INFO_SERVICIOS
+            # Ruteo dentro de INFO_SERVICIOS
             if session.get("state") == "INFO_SERVICIOS":
-                if text == "1":
-                    # Dirección Guayaquil
+                if key == "1":
                     reply = build_direccion_gye_message()
                     session["state"] = "INFO_SERVICIOS_GYE"
                     session_store.set(session_id, session)
-                elif text == "2":
-                    # Dirección Milagro
+                elif key == "2":
                     reply = build_direccion_milagro_message()
                     session["state"] = "INFO_SERVICIOS_MIL"
                     session_store.set(session_id, session)
-                elif text == "0":
-                    # Atrás → vuelve al menú
-                    reset_to_main(session)
-                    session_store.set(session_id, session)
-                    reply = format_main_menu()
-                elif text == "9":
-                    # Inicio
+                elif key == "0" or key == "9":
                     reset_to_main(session)
                     session_store.set(session_id, session)
                     reply = format_main_menu()
                 else:
-                    # Entrada no válida → repetir panel con hint
                     reply = build_info_servicios_message()
 
                 mark_processed(message_id, "wa")
@@ -345,47 +354,42 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                     logger.exception("WhatsApp response delivery failed")
                 continue
 
-            # Menú principal router
+            # Ruteo robusto del MENÚ_PRINCIPAL (usa key)
             if session.get("state") == "MENU_PRINCIPAL":
-                if text in {"0", "9", "1", "2", "3", "4", "5"}:
-                    logger.debug(f"MENU_PRINCIPAL: user={from_number}, text={text}, state={session.get('state')}")
-                    if text == "0":
-                        menu = format_main_menu()
-                        reply = f"{menu}"
-                        logger.info(f"INFO:anabot:MENU_OPTION 0 (atrás) for user {from_number}")
-                        session["state"] = "MENU_PRINCIPAL"
-                        session_store.set(session_id, session)
-                    elif text == "9":
-                        reset_to_main(session)
-                        session_store.set(session_id, session)
-                        menu = format_main_menu()
-                        reply = f"{menu}"
-                        logger.info(f"INFO:anabot:MENU_OPTION 9 (inicio) for user {from_number}")
-                    elif text == "1":
-                        # Más información de servicios
-                        reply = build_info_servicios_message()
-                        session["state"] = "INFO_SERVICIOS"
-                        session_store.set(session_id, session)
-                        logger.info(f"INFO:anabot:MENU_OPTION 1 (info servicios) for user {from_number}, state={session['state']}")
-                    elif text == "2":
-                        # Agendar cita médica
-                        reply = "Por favor, ingrese su número de cédula (10 dígitos) o pasaporte:"
-                        session["state"] = "AGENDAR_CITA_DNI"
-                        session_store.set(session_id, session)
-                        logger.info(f"INFO:anabot:MENU_OPTION 2 (agendar cita) for user {from_number}")
-                    elif text in {"3", "4", "5"}:
-                        reply = "⚙️ En construcción"
-                        logger.info(f"INFO:anabot:MENU_OPTION {text} for user {from_number}")
-                    else:
-                        reply = format_main_menu()
-                    logger.debug(f"RESPUESTA: user={from_number}, reply={reply}, state={session.get('state')}")
-                    mark_processed(message_id, "wa")
-                    db_utils.save_response(from_number, reply, "wa")
-                    try:
-                        await wa_send_text(from_number, reply)
-                    except Exception:
-                        logger.exception("WhatsApp response delivery failed")
-                    continue
+                if key == "1":
+                    reply = build_info_servicios_message()
+                    session["state"] = "INFO_SERVICIOS"
+                    session_store.set(session_id, session)
+                elif key == "2":
+                    reply = build_agendar_cita_menu()
+                    session["state"] = "AGENDAR_CITA"
+                    session_store.set(session_id, session)
+                elif key == "3":
+                    reply = build_reagendar_menu()
+                    session["state"] = "REAGENDAR"
+                    session_store.set(session_id, session)
+                elif key == "4":
+                    reply = build_consultar_cita_menu()
+                    session["state"] = "CONSULTAR_CITA"
+                    session_store.set(session_id, session)
+                elif key == "5":
+                    reply = build_hablar_con_doctor_message()
+                    session["state"] = "HABLAR_DOCTOR"
+                    session_store.set(session_id, session)
+                elif key == "9":
+                    reset_to_main(session)
+                    session_store.set(session_id, session)
+                    reply = format_main_menu()
+                else:
+                    reply = format_main_menu()
+
+                mark_processed(message_id, "wa")
+                db_utils.save_response(from_number, reply, "wa")
+                try:
+                    await wa_send_text(from_number, reply)
+                except Exception:
+                    logger.exception("WhatsApp response delivery failed")
+                continue
 
             # Flujo de agendamiento de cita médica
             if session.get("state") == "AGENDAR_CITA_DNI":
