@@ -239,7 +239,7 @@ async def wa_verify(
 
 
 
-from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main, compose_greeting, inactivity_middleware, send_greeting_with_menu, build_info_servicios_message
+from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main, compose_greeting, inactivity_middleware, send_greeting_with_menu, build_info_servicios_message, build_direccion_gye_message, build_direccion_milagro_message
 from session_store import FlowSessionStore
 
 @app.post("/webhook/whatsapp")
@@ -284,19 +284,50 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             except Exception:
                 logger.exception("Inactivity middleware failed")
 
-            # Forzar MENÚ PRINCIPAL correctamente (sin duplicar “Soy Ana…”)
-            if is_greeting(text) or session.get("state") not in {"MENU_PRINCIPAL", "RF_RED_FLAG"}:
-                if not session.get("has_greeted"):
-                    try:
-                        await send_greeting_with_menu(from_number, wa_send_text)
-                    except Exception:
-                        logger.exception("WhatsApp delivery failed (greeting+menu)")
-                    session["has_greeted"] = True
+            # Forzar MENÚ PRINCIPAL SOLAMENTE en el primer saludo (evitar resets agresivos)
+            if is_greeting(text) and not session.get("has_greeted"):
+                try:
+                    await send_greeting_with_menu(from_number, wa_send_text)
+                except Exception:
+                    logger.exception("WhatsApp delivery failed (greeting+menu)")
+                session["has_greeted"] = True
+                reset_to_main(session)
+                session_store.set(session_id, session)
+                mark_processed(message_id, "wa")
+                continue
+            # Manejo de flujo dentro de INFO_SERVICIOS
+            if session.get("state") == "INFO_SERVICIOS":
+                if text == "1":
+                    # Dirección Guayaquil
+                    reply = build_direccion_gye_message()
+                    session["state"] = "INFO_SERVICIOS_GYE"
+                    session_store.set(session_id, session)
+                elif text == "2":
+                    # Dirección Milagro
+                    reply = build_direccion_milagro_message()
+                    session["state"] = "INFO_SERVICIOS_MIL"
+                    session_store.set(session_id, session)
+                elif text == "0":
+                    # Atrás → vuelve al menú
                     reset_to_main(session)
                     session_store.set(session_id, session)
-                    logger.info("INFO:anabot:FORCED_MENU user=%s text='%s' state='%s'", from_number, text, session.get("state"))
-                    mark_processed(message_id, "wa")
-                    continue  # Solo retornar aquí si es el primer saludo
+                    reply = format_main_menu()
+                elif text == "9":
+                    # Inicio
+                    reset_to_main(session)
+                    session_store.set(session_id, session)
+                    reply = format_main_menu()
+                else:
+                    # Entrada no válida → repetir panel con hint
+                    reply = build_info_servicios_message()
+
+                mark_processed(message_id, "wa")
+                db_utils.save_response(from_number, reply, "wa")
+                try:
+                    await wa_send_text(from_number, reply)
+                except Exception:
+                    logger.exception("WhatsApp response delivery failed")
+                continue
 
             # Red flag detection
             if is_red_flag(text):
