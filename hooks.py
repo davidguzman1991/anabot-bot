@@ -1,14 +1,46 @@
 """Business hooks for AnaBot flow v6."""
+
 # --- Helper para forzar menú principal y limpiar sesión ---
 def reset_to_main(session):
     session["state"] = "MENU_PRINCIPAL"
     session["step"] = None
     session.pop("en_proceso", None)
     session.pop("flags", None)
-    from hooks import get_daypart_greeting, format_main_menu
     saludo = get_daypart_greeting()
     menu = format_main_menu()
     return f"{saludo} 👋 Soy Ana, asistente virtual del Dr. David Guzmán.\n\n{menu}"
+
+# Alias retrocompatibles y helpers exportados
+def restablecer_a_principal(session):
+    return reset_to_main(session)
+
+def obtener_saludo_de_parte_del_dia(hora: int = None) -> str:
+    return get_daypart_greeting(hora)
+
+def es_saludo(texto: str) -> bool:
+    return is_greeting(texto)
+
+def formato_menu_principal() -> str:
+    return format_main_menu()
+
+# Red flag helper retrocompatible
+def es_bandera_roja(texto: str) -> bool:
+    # Usar la misma lógica que is_red_flag (alias)
+    texto = (texto or "").lower()
+    terms = ["quemazón", "hormigueo", "descargas eléctricas", "dolor", "frialdad", "calentura", "fiebre", "herida"]
+    return any(term in texto for term in terms)
+
+def is_red_flag(texto: str) -> bool:
+    return es_bandera_roja(texto)
+
+# __all__ para exportar helpers
+__all__ = [
+    "get_daypart_greeting", "obtener_saludo_de_parte_del_dia",
+    "is_greeting", "es_saludo",
+    "format_main_menu", "formato_menu_principal",
+    "reset_to_main", "restablecer_a_principal",
+    "es_bandera_roja", "is_red_flag"
+]
 
 
 """Business hooks for AnaBot flow v6."""

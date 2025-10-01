@@ -26,7 +26,8 @@ def test_idempotency_blocks_duplicate():
 
 
 import pytest
-from hooks import get_daypart_greeting, is_greeting, format_main_menu, RED_FLAG_TERMS
+
+from hooks import get_daypart_greeting, is_greeting, format_main_menu, RED_FLAG_TERMS, es_bandera_roja, is_red_flag
 
 def test_is_greeting():
     assert is_greeting("hola")
@@ -49,3 +50,13 @@ def test_red_flag_terms():
     terms = ["quemazón", "hormigueo", "descargas eléctricas", "dolor", "frialdad", "calentura", "fiebre", "herida"]
     for t in terms:
         assert any(t in rf for rf in RED_FLAG_TERMS)
+
+def test_es_bandera_roja_and_is_red_flag():
+    positivos = ["tengo dolor", "quemazón en la pierna", "hormigueo", "descargas eléctricas", "frialdad", "calentura", "fiebre", "herida"]
+    negativos = ["hola", "quiero una cita", "no tengo síntomas", "todo bien"]
+    for texto in positivos:
+        assert es_bandera_roja(texto) is True
+        assert is_red_flag(texto) is True
+    for texto in negativos:
+        assert es_bandera_roja(texto) is False
+        assert is_red_flag(texto) is False
