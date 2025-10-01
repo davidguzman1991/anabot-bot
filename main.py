@@ -26,7 +26,14 @@ from flow_engine import FlowEngine
 from session_store import FlowSessionStore
 
 logger = logging.getLogger("anabot")
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
+# Bloque para arranque directo con manejo de errores global
+if __name__ == "__main__":
+    import uvicorn
+    try:
+        uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+    except Exception:
+        logger.exception("Error al iniciar AnaBot")
 
 settings = get_settings()
 DATABASE_URL = settings.DATABASE_URL
@@ -270,7 +277,7 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
 
             # Llamar al middleware de inactividad: puede enviar despedida y reiniciar
             try:
-                handled = inactivity_middleware(from_number, wa_send_text, text)
+                handled = await inactivity_middleware(from_number, wa_send_text, text)
                 if handled:
                     mark_processed(message_id, "wa")
                     continue  # ya se envió despedida + saludo+menú
