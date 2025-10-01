@@ -1,0 +1,11 @@
+# Evitar subir archivos sensibles y temporales
+.env
+.env.*
+__pycache__/
+*.pyc
+*.pyo
+.vscode/
+.DS_Store
+*.sqlite3
+*.db
+*.log
