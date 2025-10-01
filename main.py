@@ -284,17 +284,17 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             elif msg_type == "reaction":
                 user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
 
-            text_raw = user_text  # lo que llegue del webhook
+            text_raw = user_text
             text = normalize_user_text(text_raw)
             key = extract_digits_key(text)
             preview = text.replace("\n", " ")[:120]
 
-            session_store = SESSION_STORE
-            session_id = f"wa:{from_number}"
-            session = session_store.get(session_id) or {"state": "MENU_PRINCIPAL", "has_greeted": False}
+            sid = f"wa:{from_number}"
+            session = SESSION_STORE.get(sid) or {"node": "HOME", "has_greeted": False}
             safe_session = session or {}
-            safe_state = safe_session.get("state")
-            logger.info("WA input raw='%s' norm='%s' key='%s' state='%s'", text_raw, text, key, safe_state)
+            safe_node = safe_session.get("node")
+            logger.info("WA raw='%s' norm='%s' key='%s' node='%s'", text_raw, text, key, safe_node)
+
 
 
             # Llamar al middleware de inactividad: puede enviar despedida y reiniciar
@@ -308,33 +308,47 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
 
             # Solo primer saludo (evitar resets agresivos por estado no permitido)
             if is_greeting(text) and not session.get("has_greeted"):
+                session["node"] = "HOME"
+                session["has_greeted"] = True
+                SESSION_STORE.set(sid, session)
                 try:
                     await send_greeting_with_menu(from_number, wa_send_text)
                 except Exception:
                     logger.exception("WhatsApp delivery failed (greeting+menu)")
-                session["has_greeted"] = True
-                reset_to_main(session)
-                session_store.set(session_id, session)
                 mark_processed(message_id, "wa")
                 continue
 
-            # Ruteo dentro de INFO_SERVICIOS
-            if session.get("state") == "INFO_SERVICIOS":
+            # Ruteo por nodo
+            node = session.get("node")
+            # HOME
+            if node == "HOME":
                 if key == "1":
-                    reply = build_direccion_gye_message()
-                    session["state"] = "INFO_SERVICIOS_GYE"
-                    session_store.set(session_id, session)
+                    reply = build_info_servicios_message()
+                    session["node"] = "INFO_SERVICIOS"
+                    SESSION_STORE.set(sid, session)
                 elif key == "2":
-                    reply = build_direccion_milagro_message()
-                    session["state"] = "INFO_SERVICIOS_MIL"
-                    session_store.set(session_id, session)
-                elif key == "0" or key == "9":
-                    reset_to_main(session)
-                    session_store.set(session_id, session)
+                    reply = build_agendar_cita_menu()
+                    session["node"] = "AGENDAR_CITA"
+                    SESSION_STORE.set(sid, session)
+                elif key == "3":
+                    reply = build_reagendar_menu()
+                    session["node"] = "REAGENDAR"
+                    SESSION_STORE.set(sid, session)
+                elif key == "4":
+                    reply = build_consultar_cita_menu()
+                    session["node"] = "CONSULTAR_CITA"
+                    SESSION_STORE.set(sid, session)
+                elif key == "5":
+                    reply = build_hablar_con_doctor_message()
+                    session["node"] = "HABLAR_DOCTOR"
+                    SESSION_STORE.set(sid, session)
+                elif key == "9":
+                    session["node"] = "HOME"
+                    session["has_greeted"] = True
+                    SESSION_STORE.set(sid, session)
                     reply = format_main_menu()
                 else:
-                    reply = build_info_servicios_message()
-
+                    reply = format_main_menu()
                 mark_processed(message_id, "wa")
                 db_utils.save_response(from_number, reply, "wa")
                 try:
@@ -343,51 +357,22 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                     logger.exception("WhatsApp response delivery failed")
                 continue
 
-            # Red flag detection
-            if is_red_flag(text):
-                session["state"] = "RF_RED_FLAG"
-                session_store.set(session_id, session)
-                red_flag_msg = ("💛 Lamento lo que sientes. Puedo ayudarte con una cita prioritaria.\n"
-                                "Si los síntomas son muy intensos, acude a Emergencias o llama al 911.\n"
-                                "0️⃣ Atrás · 1️⃣ Agendar cita prioritaria · 2️⃣ Hablar con el Dr. Guzmán · 9️⃣ Inicio")
-                logger.info("INFO:anabot:RED_FLAG_DETECTED for user %s text='%s'", from_number, text)
-                mark_processed(message_id, "wa")
-                db_utils.save_response(from_number, red_flag_msg, "wa")
-                try:
-                    await wa_send_text(from_number, red_flag_msg)
-                except Exception:
-                    logger.exception("WhatsApp response delivery failed")
-                continue
-
-            # Ruteo robusto del MENÚ_PRINCIPAL (usa key)
-            if session.get("state") == "MENU_PRINCIPAL":
+            # INFO_SERVICIOS
+            if node == "INFO_SERVICIOS":
                 if key == "1":
-                    reply = build_info_servicios_message()
-                    session["state"] = "INFO_SERVICIOS"
-                    session_store.set(session_id, session)
+                    reply = build_direccion_gye_message()
+                    session["node"] = "INFO_SERVICIOS_GYE"
+                    SESSION_STORE.set(sid, session)
                 elif key == "2":
-                    reply = build_agendar_cita_menu()
-                    session["state"] = "AGENDAR_CITA"
-                    session_store.set(session_id, session)
-                elif key == "3":
-                    reply = build_reagendar_menu()
-                    session["state"] = "REAGENDAR"
-                    session_store.set(session_id, session)
-                elif key == "4":
-                    reply = build_consultar_cita_menu()
-                    session["state"] = "CONSULTAR_CITA"
-                    session_store.set(session_id, session)
-                elif key == "5":
-                    reply = build_hablar_con_doctor_message()
-                    session["state"] = "HABLAR_DOCTOR"
-                    session_store.set(session_id, session)
-                elif key == "9":
-                    reset_to_main(session)
-                    session_store.set(session_id, session)
+                    reply = build_direccion_milagro_message()
+                    session["node"] = "INFO_SERVICIOS_MIL"
+                    SESSION_STORE.set(sid, session)
+                elif key == "0" or key == "9":
+                    session["node"] = "HOME"
+                    SESSION_STORE.set(sid, session)
                     reply = format_main_menu()
                 else:
-                    reply = format_main_menu()
-
+                    reply = build_info_servicios_message()
                 mark_processed(message_id, "wa")
                 db_utils.save_response(from_number, reply, "wa")
                 try:
