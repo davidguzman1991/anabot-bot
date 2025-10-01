@@ -1,19 +1,3 @@
-# --- Normalización de texto y extracción de dígitos para WhatsApp ---
-import re
-import unicodedata
-
-ZERO_WIDTH = {"\u200b", "\u200c", "\u200d", "\ufeff", "\u2060", "\u200e", "\u200f", "\u202a", "\u202b", "\u202c"}
-def normalize_user_text(raw: str) -> str:
-    if raw is None:
-        return ""
-    t = unicodedata.normalize("NFKC", raw)
-    for zw in ZERO_WIDTH:
-        t = t.replace(zw, "")
-    return t.strip()
-
-def extract_digits_key(t: str) -> str:
-    digits = re.sub(r"\D+", "", t)
-    return digits[:2] if digits else ""
 
 """
 Entrypoint principal para AnaBot.
@@ -25,6 +9,8 @@ import asyncio
 import json
 import logging
 import os
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict
 
@@ -40,6 +26,20 @@ from utils.idempotency import mark_processed, is_processed
 from config import get_settings
 from flow_engine import FlowEngine
 from session_store import FlowSessionStore
+
+# --- Normalización de texto y extracción de dígitos para WhatsApp ---
+ZERO_WIDTH = {"\u200b", "\u200c", "\u200d", "\ufeff", "\u2060", "\u200e", "\u200f", "\u202a", "\u202b", "\u202c"}
+def normalize_user_text(raw: str) -> str:
+    if raw is None:
+        return ""
+    t = unicodedata.normalize("NFKC", raw)
+    for zw in ZERO_WIDTH:
+        t = t.replace(zw, "")
+    return t.strip()
+
+def extract_digits_key(t: str) -> str:
+    digits = re.sub(r"\D+", "", t)
+    return digits[:2] if digits else ""
 
 logger = logging.getLogger("anabot")
 logging.basicConfig(level=logging.DEBUG)
@@ -282,11 +282,12 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                 user_text = message["text"].get("body", "")
             elif msg_type == "reaction":
                 user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
+
             text_raw = user_text  # lo que llegue del webhook
             text = normalize_user_text(text_raw)
             key = extract_digits_key(text)
             preview = text.replace("\n", " ")[:120]
-            logger.info("WA incoming user=%s len=%s preview=%s", from_number, len(text), preview)
+            logger.info(f"WA input raw='{text_raw}' norm='{text}' key='{key}' state='{session.get('state')}'")
 
             # Cargar o crear sesión
             session_store = SESSION_STORE
