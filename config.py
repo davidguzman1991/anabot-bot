@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "allow"  # Permite variables extra en el .env
 
 
 @lru_cache

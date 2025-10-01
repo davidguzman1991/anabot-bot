@@ -292,16 +292,11 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                     except Exception:
                         logger.exception("WhatsApp delivery failed (greeting+menu)")
                     session["has_greeted"] = True
-                else:
-                    try:
-                        await wa_send_text(from_number, format_main_menu())
-                    except Exception:
-                        logger.exception("WhatsApp delivery failed (menu)")
-                reset_to_main(session)
-                session_store.set(session_id, session)
-                logger.info("INFO:anabot:FORCED_MENU user=%s text='%s' state='%s'", from_number, text, session.get("state"))
-                mark_processed(message_id, "wa")
-                continue
+                    reset_to_main(session)
+                    session_store.set(session_id, session)
+                    logger.info("INFO:anabot:FORCED_MENU user=%s text='%s' state='%s'", from_number, text, session.get("state"))
+                    mark_processed(message_id, "wa")
+                    continue  # Solo retornar aquí si es el primer saludo
 
             # Red flag detection
             if is_red_flag(text):
