@@ -1,3 +1,29 @@
+from hooks import compose_greeting, send_main_menu, build_info_servicios_message, build_direccion_gye_message, build_direccion_milagro_message
+def test_compose_greeting_no_dup():
+    saludo = compose_greeting()
+    assert "Soy Ana" not in saludo
+    assert "buen" in saludo.lower() or "tarde" in saludo.lower() or "noche" in saludo.lower()
+    menu = send_main_menu(None, saludo)
+    assert menu.count("Soy Ana") == 1
+    assert menu.count("asistente virtual") == 1
+    assert menu.count("1️⃣") == 1
+
+def test_info_servicios_contains_copy():
+    msg = build_info_servicios_message()
+    assert "$45" in msg
+    assert "60 minutos" in msg
+    for bullet in ["Electrocardiograma", "nutricional", "Educación en diabetes", "Neuropatía Diabética", "riesgo cardiovascular"]:
+        assert bullet in msg
+
+def test_info_servicios_navigation():
+    # Simular navegación: opción 1 y 2
+    gye = build_direccion_gye_message()
+    mil = build_direccion_milagro_message()
+    assert "Guayaquil" in gye
+    assert "Milagro" in mil
+    # Simular atrás/inicio en el panel principal
+    msg = build_info_servicios_message()
+    assert "Atrás" in msg or "Inicio" in msg
 from hooks import reset_to_main, Hooks
 import types
 

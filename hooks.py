@@ -1,3 +1,39 @@
+# --- Greeting composition helpers ---
+def compose_greeting(session=None) -> str:
+    """Devuelve solo el saludo de día/tarde/noche, sin repetir presentación."""
+    return get_daypart_greeting()
+
+def send_main_menu(session=None, saludo: str = None) -> str:
+    """Concatena saludo (ya compuesto) + presentación + menú principal, sin duplicar presentación."""
+    if saludo is None:
+        saludo = compose_greeting(session)
+    menu = format_main_menu()
+    return f"{saludo} Soy Ana, asistente virtual del Dr. David Guzmán.\n\n{menu}"
+
+# --- Panel de información de servicios médicos ---
+def build_info_servicios_message() -> str:
+    return (
+        "🌟 *Mis servicios médicos tienen un valor de $45*  "
+        "\n⏱️ Duración aproximada: *60 minutos*\n\n"
+        "Durante la consulta realizamos:  "
+        "\n✅ *Electrocardiograma (ECG)*  "
+        "\n✅ *Asesoría nutricional + plan personalizado*  "
+        "\n✅ *Educación en diabetes (paciente y familia)*  "
+        "\n✅ *Examen de Neuropatía Diabética y pie diabético*  "
+        "\n✅ *Valoración de riesgo cardiovascular y renal*\n\n"
+        "📍 Atención previa cita en *Guayaquil* y *Milagro*\n\n"
+        "👉 Elige una opción:  "
+        "\n1️⃣ Dirección Guayaquil  "
+        "\n2️⃣ Dirección Milagro  "
+        "\n0️⃣ Atrás · 9️⃣ Inicio"
+    )
+
+# --- Placeholders para direcciones ---
+def build_direccion_gye_message() -> str:
+    return "📍 Guayaquil: [tu dirección] · 0 Atrás · 9 Inicio"
+
+def build_direccion_milagro_message() -> str:
+    return "📍 Milagro: [tu dirección] · 0 Atrás · 9 Inicio"
 """Business hooks for AnaBot flow v6."""
 
 # --- Helper para forzar menú principal y limpiar sesión ---

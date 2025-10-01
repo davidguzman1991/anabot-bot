@@ -47,13 +47,36 @@
       "type": "menu",
       "text": "{menu}",
       "options": [
-        { "key": "1", "label": "Más información de servicios médicos", "next": "SERVICIOS_INFO" },
+        { "key": "1", "label": "Más información de servicios médicos", "next": "INFO_SERVICIOS" },
         { "key": "2", "label": "Agendar cita médica", "next": "AGENDAR_CITA" },
         { "key": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
         { "key": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
         { "key": "5", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
       ],
       "globals": { "back": "ATRAS", "home": "MENU_PRINCIPAL" }
+    },
+    {
+      "id": "INFO_SERVICIOS",
+      "type": "choice",
+      "text": "🌟 *Mis servicios médicos tienen un valor de $45*  \n⏱️ Duración aproximada: *60 minutos*\n\nDurante la consulta realizamos:  \n✅ *Electrocardiograma (ECG)*  \n✅ *Asesoría nutricional + plan personalizado*  \n✅ *Educación en diabetes (paciente y familia)*  \n✅ *Examen de Neuropatía Diabética y pie diabético*  \n✅ *Valoración de riesgo cardiovascular y renal*\n\n📍 Atención previa cita en *Guayaquil* y *Milagro*\n\n👉 Elige una opción:  \n1️⃣ Dirección Guayaquil  \n2️⃣ Dirección Milagro  \n0️⃣ Atrás · 9️⃣ Inicio",
+      "options": [
+        { "key": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
+        { "key": "2", "label": "Dirección Milagro", "next": "DIRECCION_MILAGRO" },
+        { "key": "0", "label": "Atrás", "next": "MENU_PRINCIPAL" },
+        { "key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL" }
+      ]
+    },
+    {
+      "id": "DIRECCION_GYE",
+      "type": "text",
+      "text": "📍 Guayaquil: [tu dirección] · 0 Atrás · 9 Inicio",
+      "next": "INFO_SERVICIOS"
+    },
+    {
+      "id": "DIRECCION_MILAGRO",
+      "type": "text",
+      "text": "📍 Milagro: [tu dirección] · 0 Atrás · 9 Inicio",
+      "next": "INFO_SERVICIOS"
     },
     {
       "id": "RF_RED_FLAG",
