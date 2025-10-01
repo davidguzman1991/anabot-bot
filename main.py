@@ -260,6 +260,7 @@ from session_store import FlowSessionStore
 
 @app.post("/webhook/whatsapp")
 async def wa_webhook(request: Request) -> dict[str, bool]:
+
     body = await request.json()
     try:
         entry = (body.get("entry") or [{}])[0]
@@ -287,12 +288,14 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             text = normalize_user_text(text_raw)
             key = extract_digits_key(text)
             preview = text.replace("\n", " ")[:120]
-            logger.info(f"WA input raw='{text_raw}' norm='{text}' key='{key}' state='{session.get('state')}'")
 
-            # Cargar o crear sesión
             session_store = SESSION_STORE
             session_id = f"wa:{from_number}"
-            session = session_store.get(session_id)
+            session = session_store.get(session_id) or {"state": "MENU_PRINCIPAL", "has_greeted": False}
+            safe_session = session or {}
+            safe_state = safe_session.get("state")
+            logger.info("WA input raw='%s' norm='%s' key='%s' state='%s'", text_raw, text, key, safe_state)
+
 
             # Llamar al middleware de inactividad: puede enviar despedida y reiniciar
             try:
@@ -314,6 +317,7 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                 session_store.set(session_id, session)
                 mark_processed(message_id, "wa")
                 continue
+
             # Ruteo dentro de INFO_SERVICIOS
             if session.get("state") == "INFO_SERVICIOS":
                 if key == "1":
@@ -346,7 +350,7 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
                 red_flag_msg = ("💛 Lamento lo que sientes. Puedo ayudarte con una cita prioritaria.\n"
                                 "Si los síntomas son muy intensos, acude a Emergencias o llama al 911.\n"
                                 "0️⃣ Atrás · 1️⃣ Agendar cita prioritaria · 2️⃣ Hablar con el Dr. Guzmán · 9️⃣ Inicio")
-                logger.info(f"INFO:anabot:RED_FLAG_DETECTED for user {from_number} text='{text}'")
+                logger.info("INFO:anabot:RED_FLAG_DETECTED for user %s text='%s'", from_number, text)
                 mark_processed(message_id, "wa")
                 db_utils.save_response(from_number, red_flag_msg, "wa")
                 try:
