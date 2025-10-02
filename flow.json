@@ -1,75 +1,71 @@
 {
   "version": "6.0",
   "globals": {
-    "tz": "America/Guayaquil",
-    "rules": {
-      "slot_duration_minutes": 45,
-      "gap_after_slot_minutes": 15
-    },
-    "validations": {
-      "dni": {
-        "regex": "^[A-Za-z0-9]{6,20}$",
-        "error": "Usa 6-20 caracteres alfanumericos sin espacios."
-      },
-      "fecha_dmy": {
-        "regex": "^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-(19|20)\\d\\d$",
-        "error": "Formato valido: DD-MM-AAAA."
-      },
-      "telefono_ec": {
-        "regex": "^09\\d{8}$",
-        "error": "Usa un numero ecuatoriano de 10 digitos (09XXXXXXXX)."
-      },
-      "email_opcional": {
-        "regex": "^(?:[Nn]inguno|[Nn]o\\s*tengo|omit|0)?$|^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$",
-        "error": "Ingresa un correo valido o escribe 'ninguno'."
-      }
-    },
-    "messages": {
-      "invalid_option": "No reconoci la opcion, intenta nuevamente.",
-      "invalid_field": "El dato no tiene el formato esperado, intentemos otra vez."
-    },
-    "commands": {
-      "back": "0",
-      "home": "9"
-    }
+    "commands": { "back": "0", "home": "9" }
   },
   "defaultStartNode": "MENU_PRINCIPAL",
   "nodes": [
     {
       "id": "MENU_PRINCIPAL",
-      "type": "menu",
-      "text": "1️⃣ Más información de servicios médicos\n2️⃣ Agendar cita médica\n3️⃣ Reagendar o cancelar\n4️⃣ Consultar cita médica\n5️⃣ Hablar con el Dr. Guzmán\n\n0️⃣ Atrás · 9️⃣ Inicio",
+      "type": "choice",
+      "text": "¡Buen {greeting}! Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?\nResponde con el número correspondiente a las siguientes opciones:",
       "options": [
-        { "key": "1", "label": "Más información de servicios médicos", "next": "INFO_SERVICIOS" },
-        { "key": "2", "label": "Agendar cita médica", "next": "AGENDA_DNI" },
-        { "key": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
-        { "key": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
-        { "key": "5", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
+        { "value": "1", "label": "Más información de servicios médicos", "next": "INFO_SERVICIOS" },
+        { "value": "2", "label": "Agendar cita médica", "next": "AGENDA_DNI" },
+        { "value": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
+        { "value": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
+        { "value": "5", "label": "Solicitar hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
       ],
-      "globals": { "back": "ATRAS", "home": "MENU_PRINCIPAL" }
+      "footer": "0 Atrás · 9 Inicio · 00 Humano"
     },
     {
       "id": "INFO_SERVICIOS",
       "type": "choice",
-      "text": "🌟 *Mis servicios médicos tienen un valor de $45*\n⏱️ *Duración aproximada:* 60 minutos\n\n*Durante la consulta realizamos:*\n✅ Electrocardiograma (ECG)\n✅ Asesoría nutricional + plan personalizado\n✅ Educación en diabetes (paciente y familia)\n✅ Examen de Neuropatía Diabética y pie diabético\n✅ Valoración de riesgo cardiovascular y renal\n\n📍 *Atención previa cita en Guayaquil y Milagro*\n\n👉 *Elige una opción:*\n1️⃣ Dirección Guayaquil\n2️⃣ Dirección Milagro\n\n0️⃣ Atrás · 9️⃣ Inicio",
+      "text": "🌟 *MÁS INFORMACIÓN DE SERVICIOS*\n\nMis servicios médicos tienen un valor de *$45*. La consulta dura aprox. 60 minutos. Durante la misma se realizan:\n✅ *Electrocardiograma (ECG)*\n✅ *Asesoría nutricional + plan personalizado*\n✅ *Educación en diabetes (paciente y familia)*\n✅ *Examen de Neuropatía Diabética y pie Diabético*\n✅ *Valoración de riesgo cardiovascular y renal*\n\nAtención previa cita en *Guayaquil* y *Milagro*.\n\nA continuación, elige la opción correspondiente:",
       "options": [
-        { "key": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
-        { "key": "2", "label": "Dirección Milagro", "next": "DIRECCION_MIL" },
-        { "key": "0", "label": "Atrás", "next": "MENU_PRINCIPAL" },
-        { "key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL" }
-      ]
+        { "value": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
+        { "value": "2", "label": "Dirección Milagro", "next": "DIRECCION_MIL" }
+      ],
+      "footer": "0 Atrás · 9 Inicio · 00 Humano"
     },
-        {
-          "id": "DIRECCION_GYE",
-          "type": "text",
-          "text": "📍 *Guayaquil*: Hospital de Especialidades, Torre Sur, consultorio 204 (antigua Clínica Kennedy Alborada). Atención previa cita.",
-          "next": "INFO_SERVICIOS"
-        },
+    {
+      "id": "DIRECCION_GYE",
+      "type": "choice",
+      "text": "📍 *DIRECCIÓN GUAYAQUIL*\nHospital de Especialidades (Torre Sur), Consultorio 204 (antigua Clínica Kennedy Alborada)\n🔗 [Ver en Google Maps](https://maps.app.goo.gl/7J8v9V9RJHfxADfz7)",
+      "options": [
+        { "value": "1", "label": "Agendar Cita Médica", "next": "AGENDA_DNI" }
+      ],
+      "footer": "0 Atrás · 9 Inicio · 00 Humano"
+    },
     {
       "id": "DIRECCION_MIL",
+      "type": "choice",
+      "text": "📍 *DIRECCIÓN MILAGRO*\nClínica Santa Elena, Av. Cristóbal Colón y calle P.J. Montero\n🔗 [Ver en Google Maps](https://maps.app.goo.gl/7hh97D7JDcznqRSK9)",
+      "options": [
+        { "value": "1", "label": "Agendar Cita Médica", "next": "AGENDA_DNI" }
+      ],
+      "footer": "0 Atrás · 9 Inicio · 00 Humano"
+    },
+    {
+      "id": "REAGENDAR_CANCELAR",
       "type": "text",
-      "text": "📍 *Milagro*: [tu dirección o referencia]. Atención previa cita.",
-      "next": "INFO_SERVICIOS"
+      "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
+      "next": "MENU_PRINCIPAL",
+      "footer": "0 Atrás · 9 Inicio · 00 Humano"
+    },
+    {
+      "id": "CONSULTAR_CITA",
+      "type": "text",
+      "text": "�️ Esta sección está en construcción. Por favor, intenta más tarde.",
+      "next": "MENU_PRINCIPAL",
+      "footer": "0 Atrás · 9 Inicio · 00 Humano"
+    },
+    {
+      "id": "CONTACTAR_DOCTOR",
+      "type": "text",
+      "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
+      "next": "MENU_PRINCIPAL",
+      "footer": "0 Atrás · 9 Inicio · 00 Humano"
     },
     {
       "id": "AGENDA_NEW_BIRTHDATE",
