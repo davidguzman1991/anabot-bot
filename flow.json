@@ -148,50 +148,43 @@
         "next": "MENU_PRINCIPAL"
       }
     ]
+  {
+    "version": "6.0",
+    "globals": {
+      "commands": { "back": "0", "home": "9" },
+      "validations": {
+        "dni": { "regex": "^[0-9]{10}$", "error": "Cédula inválida" }
+      }
+    },
+    "defaultStartNode": "MENU_PRINCIPAL",
+    "nodes": [
+      {
+        "id": "MENU_PRINCIPAL",
+        "type": "choice",
+        "text": "¡Bienvenido! ¿Qué deseas hacer?",
+        "options": [
+          { "key": "1", "label": "Información de servicios", "next": "INFO_SERVICIOS" },
+          { "key": "2", "label": "Agendar cita médica", "next": "AGENDA_DNI" }
+        ]
+      },
+      {
+        "id": "INFO_SERVICIOS",
+        "type": "choice",
+        "text": "Consulta médica $45. Atención en Guayaquil y Milagro.",
+        "options": [
+          { "key": "0", "label": "Volver", "next": "MENU_PRINCIPAL" }
+        ]
+      },
+      {
+        "id": "AGENDA_DNI",
+        "type": "input",
+        "text": "Por favor, ingresa tu cédula (10 dígitos):",
+        "validation": "dni",
+        "save_as": "agenda.dni",
+        "next": "MENU_PRINCIPAL"
+      }
+    ]
   }
-  "nodes": [
-    {
-  "id": "MENU_PRINCIPAL",
-  "type": "choice",
-  "text": "Responde con el número correspondiente a las siguientes opciones:",
-  "options": [
-        { "value": "1", "label": "Más información de servicios médicos", "next": "INFO_SERVICIOS" },
-        { "value": "2", "label": "Agendar cita médica", "next": "AGENDA_DNI" },
-        { "value": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
-        { "value": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
-        { "value": "5", "label": "Solicitar hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
-      ],
-      "footer": "0 Atrás · 9 Inicio · 00 Humano"
-    },
-    {
-      "id": "INFO_SERVICIOS",
-      "type": "choice",
-      "text": "🌟 *MÁS INFORMACIÓN DE SERVICIOS*\n\nMis servicios médicos tienen un valor de *$45*. La consulta dura aprox. 60 minutos. Durante la misma se realizan:\n✅ *Electrocardiograma (ECG)*\n✅ *Asesoría nutricional + plan personalizado*\n✅ *Educación en diabetes (paciente y familia)*\n✅ *Examen de Neuropatía Diabética y pie Diabético*\n✅ *Valoración de riesgo cardiovascular y renal*\n\nAtención previa cita en *Guayaquil* y *Milagro*.\n\nA continuación, elige la opción correspondiente:",
-      "options": [
-        { "value": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
-        { "value": "2", "label": "Dirección Milagro", "next": "DIRECCION_MIL" }
-      ],
-      "footer": "0 Atrás · 9 Inicio · 00 Humano"
-    },
-    {
-      "id": "DIRECCION_GYE",
-      "type": "choice",
-      "text": "📍 *DIRECCIÓN GUAYAQUIL*\nHospital de Especialidades (Torre Sur), Consultorio 204 (antigua Clínica Kennedy Alborada)\n🔗 [Ver en Google Maps](https://maps.app.goo.gl/7J8v9V9RJHfxADfz7)",
-      "options": [
-        { "value": "1", "label": "Agendar Cita Médica", "next": "AGENDA_DNI" }
-      ],
-      "footer": "0 Atrás · 9 Inicio · 00 Humano"
-    },
-    {
-      "id": "DIRECCION_MIL",
-      "type": "choice",
-      "text": "📍 *DIRECCIÓN MILAGRO*\nClínica Santa Elena, Av. Cristóbal Colón y calle P.J. Montero\n🔗 [Ver en Google Maps](https://maps.app.goo.gl/7hh97D7JDcznqRSK9)",
-      "options": [
-        { "value": "1", "label": "Agendar Cita Médica", "next": "AGENDA_DNI" }
-      ],
-      "footer": "0 Atrás · 9 Inicio · 00 Humano"
-    },
-    {
       "id": "REAGENDAR_CANCELAR",
       "type": "text",
       "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
