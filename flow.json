@@ -29,48 +29,48 @@
       "invalid_field": "El dato no tiene el formato esperado, intentemos otra vez."
     },
     "commands": {
-      "back": "1",
+      "back": "0",
       "home": "9"
     }
   },
   "defaultStartNode": "MENU_PRINCIPAL",
   "nodes": [
-        {
-          "id": "MENU_PRINCIPAL",
-          "type": "menu",
-          "text": "1️⃣ Más información de servicios médicos\n2️⃣ Agendar cita médica\n3️⃣ Reagendar o cancelar\n4️⃣ Consultar cita médica\n5️⃣ Hablar con el Dr. Guzmán\n\n0️⃣ Atrás · 9️⃣ Inicio",
-          "options": [
-            { "key": "1", "label": "Más información de servicios médicos", "next": "INFO_SERVICIOS" },
-            { "key": "2", "label": "Agendar cita médica", "next": "AGENDAR_CITA" },
-            { "key": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
-            { "key": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
-            { "key": "5", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
-          ],
-          "globals": { "back": "ATRAS", "home": "MENU_PRINCIPAL" }
-        },
-        {
-          "id": "INFO_SERVICIOS",
-          "type": "choice",
-          "text": "🌟 *Mis servicios médicos tienen un valor de $45*\n⏱️ *Duración aproximada:* 60 minutos\n\n*Durante la consulta realizamos:*\n✅ Electrocardiograma (ECG)\n✅ Asesoría nutricional + plan personalizado\n✅ Educación en diabetes (paciente y familia)\n✅ Examen de Neuropatía Diabética y pie diabético\n✅ Valoración de riesgo cardiovascular y renal\n\n📍 *Atención previa cita en Guayaquil y Milagro*\n\n👉 *Elige una opción:*\n1️⃣ Dirección Guayaquil\n2️⃣ Dirección Milagro\n\n0️⃣ Atrás · 9️⃣ Inicio",
-          "options": [
-            { "key": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
-            { "key": "2", "label": "Dirección Milagro", "next": "DIRECCION_MIL" },
-            { "key": "0", "label": "Atrás", "next": "MENU_PRINCIPAL" },
-            { "key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL" }
-          ]
-        },
+    {
+      "id": "MENU_PRINCIPAL",
+      "type": "menu",
+      "text": "1️⃣ Más información de servicios médicos\n2️⃣ Agendar cita médica\n3️⃣ Reagendar o cancelar\n4️⃣ Consultar cita médica\n5️⃣ Hablar con el Dr. Guzmán\n\n0️⃣ Atrás · 9️⃣ Inicio",
+      "options": [
+        { "key": "1", "label": "Más información de servicios médicos", "next": "INFO_SERVICIOS" },
+        { "key": "2", "label": "Agendar cita médica", "next": "AGENDA_DNI" },
+        { "key": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
+        { "key": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
+        { "key": "5", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
+      ],
+      "globals": { "back": "ATRAS", "home": "MENU_PRINCIPAL" }
+    },
+    {
+      "id": "INFO_SERVICIOS",
+      "type": "choice",
+      "text": "🌟 *Mis servicios médicos tienen un valor de $45*\n⏱️ *Duración aproximada:* 60 minutos\n\n*Durante la consulta realizamos:*\n✅ Electrocardiograma (ECG)\n✅ Asesoría nutricional + plan personalizado\n✅ Educación en diabetes (paciente y familia)\n✅ Examen de Neuropatía Diabética y pie diabético\n✅ Valoración de riesgo cardiovascular y renal\n\n📍 *Atención previa cita en Guayaquil y Milagro*\n\n👉 *Elige una opción:*\n1️⃣ Dirección Guayaquil\n2️⃣ Dirección Milagro\n\n0️⃣ Atrás · 9️⃣ Inicio",
+      "options": [
+        { "key": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
+        { "key": "2", "label": "Dirección Milagro", "next": "DIRECCION_MIL" },
+        { "key": "0", "label": "Atrás", "next": "MENU_PRINCIPAL" },
+        { "key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL" }
+      ]
+    },
         {
           "id": "DIRECCION_GYE",
           "type": "text",
           "text": "📍 *Guayaquil*: Hospital de Especialidades, Torre Sur, consultorio 204 (antigua Clínica Kennedy Alborada). Atención previa cita.",
           "next": "INFO_SERVICIOS"
         },
-        {
-          "id": "DIRECCION_MIL",
-          "type": "text",
-          "text": "📍 *Milagro*: [tu dirección o referencia]. Atención previa cita.",
-          "next": "INFO_SERVICIOS"
-        },
+    {
+      "id": "DIRECCION_MIL",
+      "type": "text",
+      "text": "📍 *Milagro*: [tu dirección o referencia]. Atención previa cita.",
+      "next": "INFO_SERVICIOS"
+    },
     {
       "id": "DIRECCION_MIL",
       "type": "text",
@@ -130,7 +130,7 @@
           "save": {"agenda.site": "MIL", "agenda.site_label": "Milagro"},
           "next": "AGENDA_MIL_FECHA"
         },
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -155,7 +155,7 @@
           "label": "Otra fecha (DD-MM-AAAA)",
           "next": "AGENDA_GYE_FECHA_INPUT"
         },
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -219,7 +219,7 @@
           ],
           "next": "AGENDA_CONFIRMACION"
         },
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -308,7 +308,7 @@
         {"key": "1", "label": "Consulta integral (60 min, $45)", "next": "INFO_CONSULTA"},
         {"key": "2", "label": "Neuropatia diabetica", "next": "INFO_NEUROPATIA"},
         {"key": "3", "label": "Pie diabetico y curaciones", "next": "INFO_PIE"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -318,7 +318,7 @@
       "options": [
         {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
         {"key": "2", "label": "Ver ubicaciones", "next": "UBICACIONES"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -328,7 +328,7 @@
       "options": [
         {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
         {"key": "2", "label": "Ver ubicaciones", "next": "UBICACIONES"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -338,7 +338,7 @@
       "options": [
         {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
         {"key": "2", "label": "Ver ubicaciones", "next": "UBICACIONES"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -348,7 +348,7 @@
       "options": [
         {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
         {"key": "2", "label": "Ver ubicaciones", "next": "UBICACIONES"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -357,7 +357,7 @@
       "text": "Guayaquil: Hospital de Especialidades (Torre Sur), consultorio 204 (antigua Clinica Kennedy Alborada).\nMapa: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7\n\nMilagro: Clinica Santa Elena, Av. Cristobal Colon y Calle Gral. PJ Montero.\nMapa: https://maps.app.goo.gl/7hh97D7JDcznqRSK9",
       "options": [
         {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -381,7 +381,7 @@
       "text": "No encontre citas activas con ese documento.\n\n?Deseas agendar una nueva cita?",
       "options": [
         {"key": "1", "label": "Si, agendar", "next": "AGENDA_SEDE"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -391,7 +391,7 @@
       "options": [
         {"key": "1", "label": "Reagendar", "next": "REA_RES_FECHA_MENU"},
         {"key": "2", "label": "Cancelar", "next": "REA_CANCEL_MOTIVO"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -502,7 +502,7 @@
       "text": "Cita cancelada. ?Deseas agendar otra fecha?",
       "options": [
         {"key": "1", "label": "Si, agendar", "next": "AGENDA_SEDE"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
