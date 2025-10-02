@@ -219,14 +219,14 @@
         "save_as": "agenda.full_name",
         "next": "AGENDA_NEW_BIRTHDATE"
       },
-      {
-        "id": "AGENDA_NEW_BIRTHDATE",
-        "type": "input",
-        "text": "Ayúdeme digitando su Fecha de nacimiento (DD–MM–AAAA)…",
-        "validation": "fecha_dmy",
-        "save_as": "agenda.birthdate",
-        "next": "AGENDA_NEW_PHONE"
-      },
+        {
+          "id": "AGENDA_NEW_BIRTHDATE",
+          "type": "input",
+          "text": "Ayúdeme digitando su Fecha de nacimiento (DD–MM–AAAA)…",
+          "validation": "fecha_dmy",
+          "save_as": "agenda.birthdate",
+          "next": "AGENDA_NEW_PHONE"
+        },
       {
         "id": "AGENDA_NEW_PHONE",
         "type": "input",
