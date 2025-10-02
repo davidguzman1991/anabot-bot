@@ -127,7 +127,12 @@
 {
   "version": "6.0",
   "globals": {
-    "commands": { "back": "0", "home": "9" }
+    "commands": { "back": "0", "home": "9" },
+    "validations": {
+      "dni": {"regex": "^[0-9]{10}$", "error": "Cédula inválida"},
+      "telefono_ec": {"regex": "^(09[0-9]{8})$", "error": "Teléfono inválido"},
+      "email_opcional": {"regex": "^(\\S+@\\S+\\.\\S+|ninguno)$", "error": "Email inválido"}
+    }
   },
   "defaultStartNode": "MENU_PRINCIPAL",
   "nodes": [
@@ -182,7 +187,7 @@
     {
       "id": "CONSULTAR_CITA",
       "type": "text",
-      "text": "�️ Esta sección está en construcción. Por favor, intenta más tarde.",
+      "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
       "next": "MENU_PRINCIPAL",
       "footer": "0 Atrás · 9 Inicio · 00 Humano"
     },
@@ -416,17 +421,7 @@
       "text": "Milagro: Clinica Santa Elena, Av. Cristobal Colon y Calle Gral. PJ Montero.\nMapa: https://maps.app.goo.gl/7hh97D7JDcznqRSK9\n\nEn cuanto confirmemos horario te escribiremos. Gracias por la confianza.",
       "next": "MENU_PRINCIPAL"
     },
-    {
-      "id": "INFO_SERVICIOS",
-      "type": "choice",
-      "text": "Selecciona el servicio sobre el que deseas leer:",
-      "options": [
-        {"key": "1", "label": "Consulta integral (60 min, $45)", "next": "INFO_CONSULTA"},
-        {"key": "2", "label": "Neuropatia diabetica", "next": "INFO_NEUROPATIA"},
-        {"key": "3", "label": "Pie diabetico y curaciones", "next": "INFO_PIE"},
-  {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
-      ]
-    },
+    
     {
       "id": "INFO_CONSULTA",
       "type": "choice",
