@@ -52,12 +52,43 @@
               ]
             },
             {
-              "id": "AGENDA_DNI",
-              "type": "input",
-              "text": "Por favor, ingresa tu cédula (10 dígitos):",
-              "validation": "dni",
-              "save_as": "agenda.dni",
-              "next": "MENU_PRINCIPAL"
+            {
+              "version": "6.0",
+              "globals": {
+                "commands": { "back": "0", "home": "9" },
+                "validations": {
+                  "dni": { "regex": "^[0-9]{10}$", "error": "Cédula inválida" }
+                }
+              },
+              "defaultStartNode": "MENU_PRINCIPAL",
+              "nodes": [
+                {
+                  "id": "MENU_PRINCIPAL",
+                  "type": "choice",
+                  "text": "¡Bienvenido! ¿Qué deseas hacer?",
+                  "options": [
+                    { "key": "1", "label": "Información de servicios", "next": "INFO_SERVICIOS" },
+                    { "key": "2", "label": "Agendar cita médica", "next": "AGENDA_DNI" }
+                  ]
+                },
+                {
+                  "id": "INFO_SERVICIOS",
+                  "type": "choice",
+                  "text": "Consulta médica $45. Atención en Guayaquil y Milagro.",
+                  "options": [
+                    { "key": "0", "label": "Volver", "next": "MENU_PRINCIPAL" }
+                  ]
+                },
+                {
+                  "id": "AGENDA_DNI",
+                  "type": "input",
+                  "text": "Por favor, ingresa tu cédula (10 dígitos):",
+                  "validation": "dni",
+                  "save_as": "agenda.dni",
+                  "next": "MENU_PRINCIPAL"
+                }
+              ]
+            }
             }
           ]
         }
