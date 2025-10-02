@@ -24,91 +24,43 @@
           { "key": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },
           { "key": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
           { "key": "5", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
-        ]
-      },
-      {
-        "id": "AGENDA_DNI",
-        "type": "input",
-        "text": "Por favor, ingresa tu cédula (10 dígitos):",
-        "validation": "dni",
-        "save_as": "agenda.dni",
-        "next": "MENU_PRINCIPAL"
-      },
-      {
-        "id": "INFO_SERVICIOS",
-        "type": "choice",
-        "text": "🌟 *MÁS INFORMACIÓN DE SERVICIOS*\n\nMis servicios médicos tienen un valor de **$45**. La consulta dura aprox. 60 minutos. Durante la misma se realizan:\n🟢 *Electrocardiograma (ECG)*\n🟢 *Asesoría nutricional + plan personalizado*\n🟢 *Educación en diabetes (paciente y familia)*\n🟢 *Examen de Neuropatía Diabética y pie Diabético*\n🟢 *Valoración de riesgo cardiovascular y renal*\n\nAtención previa cita en *Guayaquil* y *Milagro*.\n\nElige una opción:",
-        "options": [
-          { "key": "1", "label": "Dirección Guayaquil", "next": "DIRECCION_GYE" },
-          { "key": "2", "label": "Dirección Milagro", "next": "DIRECCION_MIL" },
-          { "key": "0", "label": "Atrás", "command": "back" },
-          { "key": "9", "label": "Inicio", "command": "home" }
-        ]
-      },
-      {
-        "id": "DIRECCION_GYE",
-        "type": "choice",
-        "text": "📍 *DIRECCIÓN GUAYAQUIL*\nHospital de Especialidades (Torre Sur), Consultorio 204 (antigua Clínica Kennedy Alborada)\n🔗 [Ver en Google Maps](https://maps.app.goo.gl/7J8v9V9RJHfxADfz7)",
-        "options": [
-          { "key": "1", "label": "Agendar Cita Médica", "next": "AGENDA_DNI" },
-          { "key": "0", "label": "Atrás", "command": "back" },
-          { "key": "9", "label": "Inicio", "command": "home" }
-        ]
-      },
-      {
-        "id": "DIRECCION_MIL",
-        "type": "choice",
-        "text": "📍 *DIRECCIÓN MILAGRO*\nClínica Santa Elena, Av. Cristóbal Colón y calle P.J. Montero\n🔗 [Ver en Google Maps](https://maps.app.goo.gl/7hh97D7JDcznqRSK9)",
-        "options": [
-          { "key": "1", "label": "Agendar Cita Médica", "next": "AGENDA_DNI" },
-          { "key": "0", "label": "Atrás", "command": "back" },
-          { "key": "9", "label": "Inicio", "command": "home" }
-        ]
-      },
-      {
-        "id": "REAGENDAR_CANCELAR",
-        "type": "text",
-        "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
-        "next": "MENU_PRINCIPAL"
-      },
-      {
-        "id": "CONSULTAR_CITA",
-        "type": "text",
-        "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
-        "next": "MENU_PRINCIPAL"
-      },
-      {
-        "id": "CONTACTAR_DOCTOR",
-        "type": "text",
-        "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
-        "next": "MENU_PRINCIPAL"
-      }
-    ]
-  }
-      {
-        "id": "AGENDA_SEDE",
-        "type": "choice",
-        "text": "Seleccione la sede:",
-        "options": [
-          { "key": "1", "label": "Guayaquil", "next": "AGENDA_GYE_FECHA_MENU" },
-          { "key": "2", "label": "Milagro", "next": "AGENDA_MIL_FECHA" },
-          { "key": "0", "label": "Atrás", "command": "back" },
-          { "key": "9", "label": "Inicio", "command": "home" }
-        ]
-      },
-      {
-        "id": "AGENDA_GYE_FECHA_MENU",
-        "type": "choice",
-        "text": "¿Para qué día en Guayaquil?",
-        "options": [
-          { "key": "1", "label": "Hoy", "hooks": [{ "hook": "dates_today", "save_as": "agenda.date" }], "next": "AGENDA_GYE_SLOTS" },
-          { "key": "2", "label": "Mañana", "hooks": [{ "hook": "dates_tomorrow", "save_as": "agenda.date" }], "next": "AGENDA_GYE_SLOTS" },
-          { "key": "3", "label": "Otra fecha", "next": "AGENDA_GYE_FECHA_INPUT" },
-          { "key": "0", "label": "Atrás", "command": "back" },
-          { "key": "9", "label": "Inicio", "command": "home" }
-        ]
-      },
-      {
+        {
+          "version": "6.0",
+          "globals": {
+            "commands": { "back": "0", "home": "9" },
+            "validations": {
+              "dni": { "regex": "^[0-9]{10}$", "error": "Cédula inválida" }
+            }
+          },
+          "defaultStartNode": "MENU_PRINCIPAL",
+          "nodes": [
+            {
+              "id": "MENU_PRINCIPAL",
+              "type": "choice",
+              "text": "¡Bienvenido! ¿Qué deseas hacer?",
+              "options": [
+                { "key": "1", "label": "Información de servicios", "next": "INFO_SERVICIOS" },
+                { "key": "2", "label": "Agendar cita médica", "next": "AGENDA_DNI" }
+              ]
+            },
+            {
+              "id": "INFO_SERVICIOS",
+              "type": "choice",
+              "text": "Consulta médica $45. Atención en Guayaquil y Milagro.",
+              "options": [
+                { "key": "0", "label": "Volver", "next": "MENU_PRINCIPAL" }
+              ]
+            },
+            {
+              "id": "AGENDA_DNI",
+              "type": "input",
+              "text": "Por favor, ingresa tu cédula (10 dígitos):",
+              "validation": "dni",
+              "save_as": "agenda.dni",
+              "next": "MENU_PRINCIPAL"
+            }
+          ]
+        }
         "id": "AGENDA_GYE_FECHA_INPUT",
         "type": "input",
         "text": "Indique la fecha (DD–MM–AAAA)…",
