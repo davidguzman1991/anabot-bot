@@ -72,12 +72,6 @@
       "next": "INFO_SERVICIOS"
     },
     {
-      "id": "DIRECCION_MIL",
-      "type": "text",
-      "text": "📍 *Milagro*: [tu dirección o referencia]. Atención previa cita.",
-      "next": "INFO_SERVICIOS"
-    },
-    {
       "id": "AGENDA_NEW_BIRTHDATE",
       "type": "input",
       "text": "Fecha de nacimiento (DD-MM-AAAA):",
@@ -193,7 +187,7 @@
       "options": [
         {"key": "1", "label": "Confirmar", "next": "AGENDA_REMINDER"},
         {"key": "2", "label": "Cambiar hora", "next": "AGENDA_GYE_SLOTS"},
-        {"key": "9", "label": "Cancelar", "next": "HOME"}
+        {"key": "9", "label": "Cancelar", "next": "MENU_PRINCIPAL"}
       ]
     },
     {
@@ -226,7 +220,7 @@
       "id": "AGENDA_CONFIRMACION",
       "type": "message",
       "text": "Listo. Tu cita quedo para {agenda.display} en {agenda.site_label}.\n\nDireccion: Hospital de Especialidades (Torre Sur), consultorio 204 (antigua Clinica Kennedy Alborada).\nMapa: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7\n\nTe enviaremos recordatorios. Si necesitas cambiarla o cancelar, responde por este medio.",
-      "next": "HOME"
+      "next": "MENU_PRINCIPAL"
     },
     {
       "id": "AGENDA_MIL_FECHA",
@@ -298,7 +292,7 @@
       "id": "AGENDA_MIL_CONFIRMACION",
       "type": "message",
       "text": "Milagro: Clinica Santa Elena, Av. Cristobal Colon y Calle Gral. PJ Montero.\nMapa: https://maps.app.goo.gl/7hh97D7JDcznqRSK9\n\nEn cuanto confirmemos horario te escribiremos. Gracias por la confianza.",
-      "next": "HOME"
+      "next": "MENU_PRINCIPAL"
     },
     {
       "id": "INFO_SERVICIOS",
@@ -471,7 +465,7 @@
       "id": "REA_RES_DONE",
       "type": "message",
       "text": "Actualizado. Tu nueva cita es {agenda.display} en {agenda.site_label}.",
-      "next": "HOME"
+      "next": "MENU_PRINCIPAL"
     },
     {
       "id": "REA_CANCEL_MOTIVO",
@@ -512,7 +506,7 @@
       "options": [
         {"key": "1", "label": "Agendar cita", "next": "AGENDA_DNI"},
         {"key": "5", "label": "Reagendar o cancelar", "next": "REA_DNI"},
-        {"key": "9", "label": "Inicio", "next": "HOME"}
+        {"key": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
       ]
     },
     {

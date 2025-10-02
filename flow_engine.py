@@ -17,7 +17,7 @@ class MemoryStore:
         now_iso = datetime.datetime.utcnow().isoformat()
         if sid not in self.sessions:
             self.sessions[sid] = {
-                "node": "HOME",
+                "node": "MENU_PRINCIPAL",
                 "ctx": {},
                 "history": [],
                 "_needs_on_enter": True,
@@ -40,7 +40,7 @@ class FlowEngine:
     def __init__(self, flow_path: str = "flow.json", store: Optional[MemoryStore] = None):
         with open(flow_path, "r", encoding="utf-8") as f:
             self.flow = json.load(f)
-        self.start = self.flow.get("start", "HOME")
+        self.start = self.flow.get("start", "MENU_PRINCIPAL")
         self.nodes = {n["id"]: n for n in self.flow.get("nodes", [])}
         self.globals = self.flow.get("globals", {})
         self.validations = self.globals.get("validations", {})
@@ -144,7 +144,7 @@ class FlowEngine:
         st["_needs_on_enter"] = True
         st["inactivity_stage"] = 0
 
-    def _validate(self, pattern_key: Optional[str], text: str) -> (bool, Optional[str]):
+    def _validate(self, pattern_key: Optional[str], text: str) -> tuple[bool, Optional[str]]:
         if not pattern_key:
             return True, None
         rule = self.validations.get(pattern_key)

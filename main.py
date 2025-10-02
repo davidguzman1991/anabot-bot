@@ -30,7 +30,6 @@ from session_store import FlowSessionStore
 
 logger = logging.getLogger("anabot")
 logging.basicConfig(level=logging.DEBUG)
-# Bloque para arranque directo con manejo de errores global
 if __name__ == "__main__":
     import uvicorn
     try:
@@ -38,27 +37,25 @@ if __name__ == "__main__":
     except Exception:
         logger.exception("Error al iniciar AnaBot")
 
+# Configuración y constantes
 settings = get_settings()
 DATABASE_URL = settings.DATABASE_URL
-
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or settings.TELEGRAM_TOKEN
 if not TELEGRAM_BOT_TOKEN:
     raise RuntimeError("TELEGRAM_BOT_TOKEN/TELEGRAM_TOKEN env var is required")
-
 TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 TELEGRAM_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
-
 WA_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
 WA_PHONE_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
 WA_VERIFY = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
 WA_MSG_URL = "https://graph.facebook.com/v20.0/{phone_id}/messages"
-
 FLOW_PATH = Path(__file__).with_name("flow.json")
 SESSION_STORE = FlowSessionStore()
 FLOW_ENGINE: FlowEngine | None = None
 SCHEMA_READY = False
 FOOTER_TEXT = "\n\n0 Atrás · 9 Inicio · 00 Humano"
 
+# Inicialización de la app
 app = FastAPI(title="AnaBot", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
@@ -139,12 +136,15 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     clean_text = (user_text or "").strip()
     channel = "wa" if platform.lower().startswith("wa") else "tg"
     session_id = f"{channel}:{user_id}"
+    db_utils.save_message(user_id, clean_text, channel)
     preview = clean_text.replace("\n", " ")[:120]
     logger.info("handle_text channel=%s user=%s len=%s preview=%s", channel, user_id, len(clean_text), preview)
 
-    if clean_text == "00":
+    if clean_text in ("0", "00"):
         engine.hooks.handoff_to_human(platform=channel, user_id=str(user_id), message=user_text, ctx={})
-        return _append_footer("Te conecto con un asesor humano y compartire tu mensaje.")
+        response_text = _append_footer("Te conecto con un asesor humano y compartire tu mensaje.")
+        db_utils.save_response(user_id, response_text, channel)
+        return response_text
 
     state = SESSION_STORE.get(session_id)
     ctx = state.setdefault("ctx", {})
@@ -174,6 +174,7 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     SESSION_STORE.set(session_id, final_state)
 
     message = (result or {}).get("message") or "Gracias por escribirnos."
+    db_utils.save_response(user_id, message, channel)
     return _append_footer(message)
 
 
@@ -186,9 +187,11 @@ async def tg_send_text(chat_id: str, text: str) -> None:
         try:
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            logger.error("Telegram send error: %s %s",
-                         exc.response.status_code if exc.response else "?",
-                         exc.response.text if exc.response else exc)
+            logger.error(
+                "Telegram send error: %s %s",
+                exc.response.status_code if exc.response else "?",
+                exc.response.text if exc.response else exc,
+            )
 
 def ensure_schema_once() -> None:
     global SCHEMA_READY
