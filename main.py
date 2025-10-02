@@ -180,50 +180,15 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
 async def tg_send_text(chat_id: str, text: str) -> None:
     async with httpx.AsyncClient(timeout=20) as client:
         resp = await client.post(
-
-            @app.post("/webhook/whatsapp")
-            async def wa_webhook(request: Request) -> dict[str, bool]:
-                body = await request.json()
-                try:
-                    entry = (body.get("entry") or [{}])[0]
-                    changes = (entry.get("changes") or [{}])[0]
-                    value = changes.get("value") or {}
-                    messages = value.get("messages") or []
-                    statuses = value.get("statuses") or []
-
-                    for message in messages:
-                        from_number = message.get("from")
-                        msg_type = message.get("type")
-                        if not from_number:
-                            continue
-                        user_text = ""
-                        if msg_type == "text":
-                            user_text = message["text"].get("body", "")
-                        elif msg_type == "reaction":
-                            user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
-                        preview = user_text.replace("\n", " ")[:120]
-                        logger.info("WA incoming user=%s len=%s preview=%s", from_number, len(user_text), preview)
-
-                        response_text = None
-                        try:
-                            response_text = await handle_text(user_text, platform="whatsapp", user_id=from_number)
-                        except Exception:
-                            logger.exception("WhatsApp handle_text failed")
-                            response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
-
-                        if response_text:
-                            try:
-                                await wa_send_text(from_number, response_text)
-                            except Exception:
-                                logger.exception("WhatsApp response delivery failed")
-
-                    if statuses:
-                        logger.info("WA statuses: %s", json.dumps(statuses)[:200])
-
-                except Exception:
-                    logger.exception("WhatsApp webhook processing failed")
-                return {"ok": True}
-
+            f"{TELEGRAM_API}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+        )
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error("Telegram send error: %s %s",
+                         exc.response.status_code if exc.response else "?",
+                         exc.response.text if exc.response else exc)
 
 def ensure_schema_once() -> None:
     global SCHEMA_READY
@@ -398,12 +363,11 @@ async def wa_verify(
 
 
 
-from hooks import get_daypart_greeting, is_greeting, format_main_menu, is_red_flag, reset_to_main, compose_greeting, inactivity_middleware, send_greeting_with_menu, build_info_servicios_message, build_direccion_gye_message, build_direccion_milagro_message
-from session_store import FlowSessionStore
+
+
 
 @app.post("/webhook/whatsapp")
 async def wa_webhook(request: Request) -> dict[str, bool]:
-
     body = await request.json()
     try:
         entry = (body.get("entry") or [{}])[0]
@@ -415,11 +379,7 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
         for message in messages:
             from_number = message.get("from")
             msg_type = message.get("type")
-            message_id = message.get("id") or message.get("message_id")
-            if not from_number or not message_id:
-                continue
-            # Idempotencia: si ya procesado, no responder
-            if is_processed(message_id, "wa"):
+            if not from_number:
                 continue
             user_text = ""
             if msg_type == "text":
@@ -427,203 +387,20 @@ async def wa_webhook(request: Request) -> dict[str, bool]:
             elif msg_type == "reaction":
                 user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
 
-            text_raw = user_text
-            text = normalize_user_text(text_raw)
-            key = extract_digits_key(text)
-            preview = text.replace("\n", " ")[:120]
-
-            sid = f"wa:{from_number}"
-            session = SESSION_STORE.get(sid) or {"node": "HOME", "has_greeted": False}
-            safe_session = session or {}
-            safe_node = safe_session.get("node")
-            logger.info("WA raw='%s' norm='%s' key='%s' node='%s'", text_raw, text, key, safe_node)
-
-
-
-            # Llamar al middleware de inactividad: puede enviar despedida y reiniciar
             try:
-                handled = await inactivity_middleware(from_number, wa_send_text, text)
-                if handled:
-                    mark_processed(message_id, "wa")
-                    continue  # ya se envió despedida + saludo+menú
+                response_text = await handle_text(user_text, platform="whatsapp", user_id=from_number)
             except Exception:
-                logger.exception("Inactivity middleware failed")
+                logger.exception("WhatsApp handle_text failed")
+                response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
 
-            # Solo primer saludo (evitar resets agresivos por estado no permitido)
-            if is_greeting(text) and not session.get("has_greeted"):
-                session["node"] = "HOME"
-                session["has_greeted"] = True
-                SESSION_STORE.set(sid, session)
+            if response_text:
                 try:
-                    await send_greeting_with_menu(from_number, wa_send_text)
-                except Exception:
-                    logger.exception("WhatsApp delivery failed (greeting+menu)")
-                mark_processed(message_id, "wa")
-                continue
-
-            # Ruteo por nodo
-            node = session.get("node")
-            # HOME
-            if node == "HOME":
-                if key == "1":
-                    reply = build_info_servicios_message()
-                    session["node"] = "INFO_SERVICIOS"
-                    SESSION_STORE.set(sid, session)
-                elif key == "2":
-                    reply = build_agendar_cita_menu()
-                    session["node"] = "AGENDAR_CITA"
-                    SESSION_STORE.set(sid, session)
-                elif key == "3":
-                    reply = build_reagendar_menu()
-                    session["node"] = "REAGENDAR"
-                    SESSION_STORE.set(sid, session)
-                elif key == "4":
-                    reply = build_consultar_cita_menu()
-                    session["node"] = "CONSULTAR_CITA"
-                    SESSION_STORE.set(sid, session)
-                elif key == "5":
-                    reply = build_hablar_con_doctor_message()
-                    session["node"] = "HABLAR_DOCTOR"
-                    SESSION_STORE.set(sid, session)
-                elif key == "9":
-                    session["node"] = "HOME"
-                    session["has_greeted"] = True
-                    SESSION_STORE.set(sid, session)
-                    reply = format_main_menu()
-                else:
-                    reply = format_main_menu()
-                mark_processed(message_id, "wa")
-                db_utils.save_response(from_number, reply, "wa")
-                try:
-                    await wa_send_text(from_number, reply)
+                    await wa_send_text(from_number, response_text)
                 except Exception:
                     logger.exception("WhatsApp response delivery failed")
-                continue
-
-            # INFO_SERVICIOS
-            if node == "INFO_SERVICIOS":
-                if key == "1":
-                    reply = build_direccion_gye_message()
-                    session["node"] = "INFO_SERVICIOS_GYE"
-                    SESSION_STORE.set(sid, session)
-                elif key == "2":
-                    reply = build_direccion_milagro_message()
-                    session["node"] = "INFO_SERVICIOS_MIL"
-                    SESSION_STORE.set(sid, session)
-                elif key == "0" or key == "9":
-                    session["node"] = "HOME"
-                    SESSION_STORE.set(sid, session)
-                    reply = format_main_menu()
-                else:
-                    reply = build_info_servicios_message()
-                mark_processed(message_id, "wa")
-                db_utils.save_response(from_number, reply, "wa")
-                try:
-                    await wa_send_text(from_number, reply)
-                except Exception:
-                    logger.exception("WhatsApp response delivery failed")
-                continue
-
-            # Flujo de agendamiento de cita médica
-            if session.get("state") == "AGENDAR_CITA_DNI":
-                dni = text.strip()
-                # Validar cédula (10 dígitos) o pasaporte (alfanumérico)
-                paciente = None
-                if len(dni) == 10 and dni.isdigit():
-                    # Simulación de búsqueda: si el dni termina en 1, existe
-                    if dni.endswith("1"):
-                        paciente = {"nombre": "Juan Pérez"}  # Simulación, reemplaza por consulta real
-                # Si paciente existe, saltar a selección de día
-                if paciente:
-                    reply = (
-                        f"Usted es el paciente {paciente['nombre']}. Indique qué día desea ser atendido, por favor marque el número de las siguientes opciones:\n"
-                        "1. Hoy\n2. Mañana\n3. Otra fecha\n0. Atrás\n9. Inicio"
-                    )
-                    session["state"] = "AGENDAR_CITA_DIA"
-                    session["dni"] = dni
-                    session["nombre"] = paciente["nombre"]
-                    session_store.set(session_id, session)
-                    mark_processed(message_id, "wa")
-                    db_utils.save_response(from_number, reply, "wa")
-                    try:
-                        await wa_send_text(from_number, reply)
-                    except Exception:
-                        logger.exception("WhatsApp response delivery failed")
-                    continue
-                else:
-                    reply = "Escribir un nombre y dos apellidos (por ej: Maria Lopez Garcia)"
-                    session["state"] = "AGENDAR_CITA_NOMBRE"
-                    session["dni"] = dni
-                    session_store.set(session_id, session)
-                    mark_processed(message_id, "wa")
-                    db_utils.save_response(from_number, reply, "wa")
-                    try:
-                        await wa_send_text(from_number, reply)
-                    except Exception:
-                        logger.exception("WhatsApp response delivery failed")
-                    continue
-            if session.get("state") == "AGENDAR_CITA_NOMBRE":
-                nombre = text.strip()
-                reply = "Ayúdeme digitando su Fecha de nacimiento (DD–MM–AAAA) por ej: 20–06–1991"
-                session["state"] = "AGENDAR_CITA_FECHA"
-                session["nombre"] = nombre
-                session_store.set(session_id, session)
-                mark_processed(message_id, "wa")
-                db_utils.save_response(from_number, reply, "wa")
-                try:
-                    await wa_send_text(from_number, reply)
-                except Exception:
-                    logger.exception("WhatsApp response delivery failed")
-                continue
-            if session.get("state") == "AGENDAR_CITA_FECHA":
-                fecha = text.strip()
-                reply = "Ayúdeme proporcionando su número de contacto ya sea celular o whatsapp por ej: 09xxxxxxxx"
-                session["state"] = "AGENDAR_CITA_TELEFONO"
-                session["fecha_nacimiento"] = fecha
-                session_store.set(session_id, session)
-                mark_processed(message_id, "wa")
-                db_utils.save_response(from_number, reply, "wa")
-                try:
-                    await wa_send_text(from_number, reply)
-                except Exception:
-                    logger.exception("WhatsApp response delivery failed")
-                continue
-            if session.get("state") == "AGENDAR_CITA_TELEFONO":
-                telefono = text.strip()
-                reply = "Ayúdeme con una dirección de correo electrónico por ej: xxxxxxx@mail.com. En el caso de no tenerlo por favor escribir ninguno para seguir avanzando"
-                session["state"] = "AGENDAR_CITA_EMAIL"
-                session["telefono"] = telefono
-                session_store.set(session_id, session)
-                mark_processed(message_id, "wa")
-                db_utils.save_response(from_number, reply, "wa")
-                try:
-                    await wa_send_text(from_number, reply)
-                except Exception:
-                    logger.exception("WhatsApp response delivery failed")
-                continue
-            if session.get("state") == "AGENDAR_CITA_EMAIL":
-                email = text.strip()
-                reply = (
-                    "Indique qué día desea ser atendido, por favor marque el número de las siguientes opciones:\n"
-                    "1. Hoy\n2. Mañana\n3. Otra fecha\n0. Atrás\n9. Inicio"
-                )
-                session["state"] = "AGENDAR_CITA_DIA"
-                session["email"] = email
-                session_store.set(session_id, session)
-                mark_processed(message_id, "wa")
-                db_utils.save_response(from_number, reply, "wa")
-                try:
-                    await wa_send_text(from_number, reply)
-                except Exception:
-                    logger.exception("WhatsApp response delivery failed")
-                continue
-
-            # Si no entró por ninguna de las anteriores, NO llamar router legacy
-            # (no llamar handle_text ni lógica de DNI)
 
         if statuses:
             logger.info("WA statuses: %s", json.dumps(statuses)[:200])
-
     except Exception:
         logger.exception("WhatsApp webhook processing failed")
     return {"ok": True}
