@@ -1,139 +1,6 @@
     {
       "id": "AGENDA_DNI",
-      "type": "input",
-      "text": "Por favor, ingresa tu cédula (10 dígitos) o pasaporte:",
-      "validation": "dni",
-      "save_as": "agenda.dni",
-      "hooks": [
-        {
-          "hook": "patient.lookup",
-          "args": ["{agenda.dni}"],
-          "if_true_next": "AGENDA_EXISTE_DIA",
-          "if_false_next": "AGENDA_NEW_NAME"
-        }
-      ]
-      },
-      {
-        "id": "AGENDA_EXISTE_DIA",
-        "type": "choice",
-        "text": "Bienvenido/a {agenda.patient.name}. Indique qué día desea ser atendido…",
-        "options": [
-          { "key": "1", "label": "Hoy", "hooks": [{ "hook": "dates_today", "save_as": "agenda.date" }], "next": "AGENDA_SEDE" },
-          { "key": "2", "label": "Mañana", "hooks": [{ "hook": "dates_tomorrow", "save_as": "agenda.date" }], "next": "AGENDA_SEDE" },
-          { "key": "3", "label": "Otra fecha", "next": "AGENDA_INPUT_FECHA" },
-          { "key": "0", "label": "Atrás", "command": "back" },
-          { "key": "9", "label": "Inicio", "command": "home" }
-        ]
-      },
-    {
-      "id": "AGENDA_NEW_NAME",
-      "type": "input",
-      "text": "Escriba un nombre y dos apellidos (ej: Maria Lopez Garcia)",
-      "validation": "fullname",
-      "save_as": "agenda.full_name",
-      "next": "AGENDA_NEW_BIRTHDATE"
-    },
-    {
-      "id": "AGENDA_NEW_BIRTHDATE",
-      "type": "input",
-      "text": "Digite su fecha de nacimiento (DD-MM-AAAA). Ej: 20-06-1991",
-      "validation": "fecha_dmy",
-      "save_as": "agenda.birthdate",
-      "next": "AGENDA_NEW_PHONE"
-    },
-    {
-      "id": "AGENDA_NEW_PHONE",
-      "type": "input",
-      "text": "Ingrese su número de contacto (celular o WhatsApp). Ej: 09xxxxxxxx",
-      "validation": "phone",
-      "save_as": "agenda.phone",
-      "next": "AGENDA_NEW_EMAIL"
-    },
-    {
-      "id": "AGENDA_NEW_EMAIL",
-      "type": "input",
-      "text": "Ingrese su correo electrónico (ej: xxxxx@mail.com). Si no tiene, escriba 'ninguno'.",
-      "validation": "email_optional",
-      "save_as": "agenda.email",
-      "next": "AGENDA_SAVE_PROFILE"
-    },
-    {
-      "id": "AGENDA_SAVE_PROFILE",
-      "type": "message",
-      "on_enter_hooks": [
-        {"hook": "patient.create_or_update", "args": ["{agenda.dni}", "{agenda.full_name}", "{agenda.birthdate}", "{agenda.phone}", "{agenda.email}"]}
-      ],
-      "next": "AGENDA_SEDE"
-    },
-    {
-      "id": "AGENDA_INPUT_FECHA",
-      "type": "input",
-      "text": "Ingrese la fecha que desea (DD-MM-AAAA)",
-      "validation": "fecha_dmy",
-      "save_as": "agenda.date",
-      "next": "AGENDA_SEDE"
-    },
-    {
-      "id": "AGENDA_SEDE",
-      "type": "choice",
-      "text": "¿En qué sede desea atenderse?",
-      "options": [
-        {"value": "1", "label": "Guayaquil", "next": "AGENDA_GYE_SLOTS"},
-        {"value": "2", "label": "Milagro", "next": "AGENDA_MIL_SLOTS"},
-        {"value": "0", "label": "Atrás", "next": "MENU_PRINCIPAL"},
-        {"value": "9", "label": "Inicio", "next": "MENU_PRINCIPAL"}
-      ],
-      "footer": "0 Atrás · 9 Inicio · 00 Humano"
-    },
-    {
-      "id": "AGENDA_GYE_SLOTS",
-      "type": "choice",
-      "text": "Seleccione un horario disponible para Guayaquil:",
-      "dynamic_options_from": "agenda.slots",
-      "on_select": {"save_as": "agenda.selected_slot"},
-      "on_select_next": "AGENDA_RESUMEN",
-      "footer": "0 Atrás · 9 Inicio · 00 Humano"
-    },
-    {
-      "id": "AGENDA_MIL_SLOTS",
-      "type": "choice",
-      "text": "Seleccione un horario disponible para Milagro:",
-      "dynamic_options_from": "agenda.slots",
-      "on_select": {"save_as": "agenda.selected_slot"},
-      "on_select_next": "AGENDA_RESUMEN",
-      "footer": "0 Atrás · 9 Inicio · 00 Humano"
-    },
-    {
-      "id": "AGENDA_RESUMEN",
-      "type": "choice",
-      "text": "Resumen de cita:\nPaciente: {agenda.full_name}\nFecha: {agenda.date}\nHora: {agenda.selected_slot}\nSede: {agenda.sede}\n\n¿Confirma?",
-      "options": [
-        {"value": "1", "label": "Confirmar", "next": "AGENDA_CONFIRMADA"},
-        {"value": "2", "label": "Cambiar hora", "next": "AGENDA_SEDE"},
-        {"value": "9", "label": "Cancelar", "next": "MENU_PRINCIPAL"}
-      ],
-      "footer": "0 Atrás · 9 Inicio · 00 Humano"
-    },
-    {
-      "id": "AGENDA_CONFIRMADA",
-      "type": "text",
-      "on_enter_hooks": [
-        {"hook": "appointment.save", "args": ["{agenda.dni}", "{agenda.date}", "{agenda.selected_slot}", "{agenda.sede}"]}
-      ],
-      "text": "✅ Su cita ha sido registrada. Recibirá recordatorio por WhatsApp o correo.",
-      "next": "MENU_PRINCIPAL"
-    },
-{
-  "version": "6.0",
-  "globals": {
-    "commands": { "back": "0", "home": "9" },
-    "validations": {
-      "dni": {"regex": "^[0-9]{10}$", "error": "Cédula inválida"},
-      "telefono_ec": {"regex": "^(09[0-9]{8})$", "error": "Teléfono inválido"},
-      "email_opcional": {"regex": "^(\\S+@\\S+\\.\\S+|ninguno)$", "error": "Email inválido"}
-    }
-  },
-    "defaultStartNode": "MENU_PRINCIPAL",
+  {
     "version": "6.0",
     "globals": {
       "commands": { "back": "0", "home": "9" },
@@ -143,8 +10,9 @@
         "telefono": { "regex": "^(09[0-9]{8})$", "error": "Teléfono inválido" },
         "email_opcional": { "regex": "^(\\S+@\\S+\\.\\S+|ninguno)$", "error": "Email inválido" },
         "nombre_completo": { "regex": ".+", "error": "Nombre inválido" }
-      },
+      }
     },
+    "defaultStartNode": "MENU_PRINCIPAL",
     "nodes": [
       {
         "id": "MENU_PRINCIPAL",
@@ -157,6 +25,14 @@
           { "key": "4", "label": "Consultar cita médica", "next": "CONSULTAR_CITA" },
           { "key": "5", "label": "Hablar con el Dr. Guzmán", "next": "CONTACTAR_DOCTOR" }
         ]
+      },
+      {
+        "id": "AGENDA_DNI",
+        "type": "input",
+        "text": "Por favor, ingresa tu cédula (10 dígitos):",
+        "validation": "dni",
+        "save_as": "agenda.dni",
+        "next": "MENU_PRINCIPAL"
       },
       {
         "id": "INFO_SERVICIOS",
@@ -190,73 +66,25 @@
         ]
       },
       {
-        "id": "AGENDA_DNI",
-        "type": "input",
-        "text": "Por favor, ingresa tu cédula (10 dígitos) o pasaporte:",
-        "validation": "dni",
-        "save_as": "agenda.dni",
-        "hooks": [
-          { "hook": "patient.lookup", "args": ["{agenda.dni}"], "if_true_next": "AGENDA_EXISTE_DIA", "if_false_next": "AGENDA_NEW_NAME" }
-        ]
-      },
-      {
-        "id": "AGENDA_EXISTE_DIA",
-        "type": "choice",
-        "text": "Bienvenido/a {agenda.patient.name}. Indique qué día desea ser atendido…",
-        "options": [
-          { "key": "1", "label": "Hoy", "hooks": [{ "hook": "dates_today", "save_as": "agenda.date" }], "next": "AGENDA_SEDE" },
-          { "key": "2", "label": "Mañana", "hooks": [{ "hook": "dates_tomorrow", "save_as": "agenda.date" }], "next": "AGENDA_SEDE" },
-          { "key": "3", "label": "Otra fecha", "next": "AGENDA_INPUT_FECHA" },
-          { "key": "0", "label": "Atrás", "command": "back" },
-          { "key": "9", "label": "Inicio", "command": "home" }
-        ]
-      },
-      {
-        "id": "AGENDA_NEW_NAME",
-        "type": "input",
-        "text": "Escribir un nombre y dos apellidos (ej: Maria Lopez Garcia)",
-        "validation": "nombre_completo",
-        "save_as": "agenda.full_name",
-        "next": "AGENDA_NEW_BIRTHDATE"
-      },
-        {
-          "id": "AGENDA_NEW_BIRTHDATE",
-          "type": "input",
-          "text": "Ayúdeme digitando su Fecha de nacimiento (DD–MM–AAAA)…",
-          "validation": "fecha_dmy",
-          "save_as": "agenda.birthdate",
-          "next": "AGENDA_NEW_PHONE"
-        },
-      {
-        "id": "AGENDA_NEW_PHONE",
-        "type": "input",
-        "text": "Número de contacto (09xxxxxxxx)…",
-        "validation": "telefono",
-        "save_as": "agenda.phone",
-        "next": "AGENDA_NEW_EMAIL"
-      },
-      {
-        "id": "AGENDA_NEW_EMAIL",
-        "type": "input",
-        "text": "Correo electrónico… o escriba 'ninguno'",
-        "validation": "email_opcional",
-        "save_as": "agenda.email",
-        "next": "AGENDA_SAVE_PROFILE"
-      },
-      {
-        "id": "AGENDA_SAVE_PROFILE",
+        "id": "REAGENDAR_CANCELAR",
         "type": "text",
-        "on_enter_hooks": [ { "hook": "patient.create_or_update", "args": ["{agenda}"] } ],
-        "next": "AGENDA_SEDE"
+        "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
+        "next": "MENU_PRINCIPAL"
       },
       {
-        "id": "AGENDA_INPUT_FECHA",
-        "type": "input",
-        "text": "Indique la fecha (DD–MM–AAAA)…",
-        "validation": "fecha_dmy",
-        "save_as": "agenda.date",
-        "next": "AGENDA_SEDE"
+        "id": "CONSULTAR_CITA",
+        "type": "text",
+        "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
+        "next": "MENU_PRINCIPAL"
       },
+      {
+        "id": "CONTACTAR_DOCTOR",
+        "type": "text",
+        "text": "🛠️ Esta sección está en construcción. Por favor, intenta más tarde.",
+        "next": "MENU_PRINCIPAL"
+      }
+    ]
+  }
       {
         "id": "AGENDA_SEDE",
         "type": "choice",
