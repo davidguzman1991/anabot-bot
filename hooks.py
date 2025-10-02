@@ -30,23 +30,7 @@ def build_hablar_con_doctor_message() -> str:
 INACTIVITY_MINUTES = 20
 
 # --- Greeting/menu helpers actualizados ---
-def get_main_menu_text() -> str:
-    return (
-        "1️⃣ Más información de servicios médicos\n"
-        "2️⃣ Agendar cita médica\n"
-        "3️⃣ Reagendar o cancelar\n"
-        "4️⃣ Consultar cita médica\n"
-        "5️⃣ Hablar con el Dr. Guzmán\n"
-        "\nℹ️ En cualquier momento puedes usar:\n0️⃣ Atrás · 9️⃣ Inicio"
-    )
-
-async def send_greeting_with_menu(user_id: str, send_func):
-    import logging
-    logger = logging.getLogger("anabot")
-    logger.info("WA: sending greeting to %s", user_id)
-    await send_func(user_id, compose_greeting())
-    logger.info("WA: sending main menu to %s", user_id)
-    await send_func(user_id, format_main_menu())
+## Eliminado: get_main_menu_text, send_greeting_with_menu
 # --- Inactivity middleware for incoming messages ---
 from session_store import get_session, update_session, reset_session
 from datetime import datetime, timezone, timedelta
@@ -67,12 +51,13 @@ async def inactivity_middleware(user_id: str, send_func, incoming_text: str) -> 
         logger.info("WA: inactivity handled -> farewell+greeting")
         await send_func(user_id, "Agradecemos su interés en nuestros servicios médicos.\nSu sesión ha expirado por inactividad de 20 minutos.\nDeseamos que tenga un excelente día y estaremos atentos a su próximo mensaje.")
         reset_session(user_id)
-        await send_greeting_with_menu(user_id, send_func)
+        # Enviar saludo+menú inicial
+        await send_func(user_id, reset_to_main(get_session(user_id)))
         update_session(user_id, has_greeted=True, current_state="root", last_activity_ts=now.isoformat())
         return True  # Stop further processing
     else:
         if not session.get("has_greeted", False):
-            await send_greeting_with_menu(user_id, send_func)
+            await send_func(user_id, reset_to_main(session))
             update_session(user_id, has_greeted=True)
             update_session(user_id, last_activity_ts=now.isoformat())
             return True  # Stop further processing
@@ -83,7 +68,7 @@ async def handle_menu_routing(user_id: str, incoming_text: str, send_func):
     text = (incoming_text or "").strip()
     if text == "9":
         update_session(user_id, current_state="root")
-        await send_func(user_id, get_main_menu_text())
+        await send_func(user_id, reset_to_main(session))
         return
     if text == "1":
         update_session(user_id, current_state="info_servicios")
@@ -106,14 +91,7 @@ async def handle_menu_routing(user_id: str, incoming_text: str, send_func):
         return
     # ...existing code for other transitions...
 # --- Greeting composition helpers ---
-def compose_greeting(session=None) -> str:
-    # Saludo único con tu copy final
-    saludo = get_daypart_greeting()
-    return f"{saludo} Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?"
-
-def send_main_menu(session=None, saludo: str = None) -> str:
-    """Devuelve solo el menú principal, sin saludo ni presentación."""
-    return format_main_menu()
+## Eliminado: compose_greeting, send_main_menu
 
 # --- Panel de información de servicios médicos ---
 def build_info_servicios_message() -> str:
@@ -164,7 +142,8 @@ def reset_to_main(session):
     session.pop("flags", None)
     saludo = get_daypart_greeting()
     menu = format_main_menu()
-    return f"{saludo} 👋 Soy Ana, asistente virtual del Dr. David Guzmán.\n\n{menu}"
+    # Saludo dinámico + presentación + menú
+    return f"{saludo} Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?\n\n{menu}"
 
 # Alias retrocompatibles y helpers exportados
 def restablecer_a_principal(session):

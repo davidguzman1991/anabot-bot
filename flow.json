@@ -137,10 +137,10 @@
   "defaultStartNode": "MENU_PRINCIPAL",
   "nodes": [
     {
-      "id": "MENU_PRINCIPAL",
-      "type": "choice",
-      "text": "¡Buen {greeting}! Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?\nResponde con el número correspondiente a las siguientes opciones:",
-      "options": [
+  "id": "MENU_PRINCIPAL",
+  "type": "choice",
+  "text": "Responde con el número correspondiente a las siguientes opciones:",
+  "options": [
         { "value": "1", "label": "Más información de servicios médicos", "next": "INFO_SERVICIOS" },
         { "value": "2", "label": "Agendar cita médica", "next": "AGENDA_DNI" },
         { "value": "3", "label": "Reagendar o cancelar", "next": "REAGENDAR_CANCELAR" },

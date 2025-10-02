@@ -156,6 +156,12 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     state["ctx"] = ctx
     SESSION_STORE.set(session_id, state)
 
+    # Nuevo: interceptar saludo/menu inicial
+    route_result = engine.hooks.route_input(state, clean_text)
+    if isinstance(route_result, str):
+        db_utils.save_response(user_id, route_result, channel)
+        return _append_footer(route_result)
+
     result = engine.process(session_id, clean_text)
     post_state = SESSION_STORE.snapshot(session_id)
     payload = post_state.get("payload", {})
