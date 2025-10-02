@@ -1,8 +1,7 @@
 
+from __future__ import annotations
 import logging
 """Session persistence helpers backed by Postgres."""
-
-from __future__ import annotations
 
 import json
 from dataclasses import dataclass
