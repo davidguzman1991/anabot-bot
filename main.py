@@ -136,14 +136,20 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     clean_text = (user_text or "").strip()
     channel = "wa" if platform.lower().startswith("wa") else "tg"
     session_id = f"{channel}:{user_id}"
-    db_utils.save_message(user_id, clean_text, channel)
+    try:
+        db_utils.save_message(user_id, clean_text, channel)
+    except Exception:
+        logger.exception("db error in save_message (non-blocking)")
     preview = clean_text.replace("\n", " ")[:120]
     logger.info("handle_text channel=%s user=%s len=%s preview=%s", channel, user_id, len(clean_text), preview)
 
     if clean_text in ("0", "00"):
         engine.hooks.handoff_to_human(platform=channel, user_id=str(user_id), message=user_text, ctx={})
         response_text = _append_footer("Te conecto con un asesor humano y compartire tu mensaje.")
-        db_utils.save_response(user_id, response_text, channel)
+        try:
+            db_utils.save_response(user_id, response_text, channel)
+        except Exception:
+            logger.exception("db error in save_response (non-blocking)")
         return response_text
 
     state = SESSION_STORE.get(session_id)
@@ -159,7 +165,10 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     # Nuevo: interceptar saludo/menu inicial
     route_result = engine.hooks.route_input(state, clean_text)
     if isinstance(route_result, str):
-        db_utils.save_response(user_id, route_result, channel)
+        try:
+            db_utils.save_response(user_id, route_result, channel)
+        except Exception:
+            logger.exception("db error in save_response (non-blocking)")
         return _append_footer(route_result)
 
     result = engine.process(session_id, clean_text)
@@ -180,7 +189,18 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     SESSION_STORE.set(session_id, final_state)
 
     message = (result or {}).get("message") or "Gracias por escribirnos."
-    db_utils.save_response(user_id, message, channel)
+    try:
+        db_utils.save_response(user_id, message, channel)
+    except Exception:
+        logger.exception("db error in save_response (non-blocking)")
+# --- Health DB endpoint ---
+from fastapi.responses import JSONResponse
+
+@app.get("/health/db")
+async def health_db():
+    from db_utils import db_health
+    result = db_health()
+    return JSONResponse(content=result)
     return _append_footer(message)
 
 

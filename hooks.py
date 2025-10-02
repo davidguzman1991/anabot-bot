@@ -469,14 +469,21 @@ class Hooks:
     # ---------- Handoff ----------
     def handoff_to_human(self, platform: str, user_id: str, message: str, *, ctx: Dict[str, Any]) -> bool:
         payload = (platform or "").strip(), (user_id or "").strip(), (message or "").strip()
-        self._execute(
-            """
-            INSERT INTO contact_requests (platform, user_key, raw_text)
-            VALUES (%s, %s, %s)
-            """,
-            payload,
-        )
-        db_utils.log_handoff((user_id or "").strip(), message or ctx.get("last_text", ""), platform or "wa")
+        try:
+            self._execute(
+                """
+                INSERT INTO public.contact_requests (platform, user_key, raw_text)
+                VALUES (%s, %s, %s)
+                """,
+                payload,
+            )
+            logger.info("INSERT public.contact_requests columns=[platform, user_key, raw_text]")
+        except Exception as e:
+            logger.exception("db error in handoff_to_human (contact_requests)")
+        try:
+            db_utils.log_handoff((user_id or "").strip(), message or ctx.get("last_text", ""), platform or "wa")
+        except Exception:
+            logger.exception("db error in handoff_to_human (log_handoff)")
         ctx.setdefault("handoff", {})["requested"] = True
         logger.info("handoff requested platform=%s user=%s", platform, user_id)
         return True
@@ -527,23 +534,27 @@ class Hooks:
         user_id = (user_id or "").strip() or None
         wa_user_id = user_id if platform == "wa" else None
         tg_user_id = user_id if platform == "tg" else None
-
-        row = self._execute(
-            """
-            INSERT INTO patients (dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (dni) DO UPDATE SET
-                full_name = EXCLUDED.full_name,
-                birth_date = COALESCE(EXCLUDED.birth_date, patients.birth_date),
-                phone_ec = COALESCE(EXCLUDED.phone_ec, patients.phone_ec),
-                email = COALESCE(EXCLUDED.email, patients.email),
-                wa_user_id = COALESCE(EXCLUDED.wa_user_id, patients.wa_user_id),
-                tg_user_id = COALESCE(EXCLUDED.tg_user_id, patients.tg_user_id)
-            RETURNING dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id, created_at
-            """,
-            (dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id),
-            fetch="one",
-        )
+        row = None
+        try:
+            row = self._execute(
+                """
+                INSERT INTO public.patients (dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (dni) DO UPDATE SET
+                    full_name = EXCLUDED.full_name,
+                    birth_date = COALESCE(EXCLUDED.birth_date, patients.birth_date),
+                    phone_ec = COALESCE(EXCLUDED.phone_ec, patients.phone_ec),
+                    email = COALESCE(EXCLUDED.email, patients.email),
+                    wa_user_id = COALESCE(EXCLUDED.wa_user_id, patients.wa_user_id),
+                    tg_user_id = COALESCE(EXCLUDED.tg_user_id, patients.tg_user_id)
+                RETURNING dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id, created_at
+                """,
+                (dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id),
+                fetch="one",
+            )
+            logger.info("UPSERT public.patients columns=[dni, full_name, birth_date, phone_ec, email, wa_user_id, tg_user_id]")
+        except Exception as e:
+            logger.exception("db error in patient_create_or_update (patients)")
         patient = self._patient_from_row(row) if row else None
         if patient is not None:
             patient["summary"] = self._patient_summary(patient)
@@ -625,16 +636,21 @@ class Hooks:
 
     def _existing_local_slots(self, site: str, day: date) -> List[datetime]:
         start_utc, end_utc = _local_bounds(day)
-        rows = self._fetch_all(
-            """
-            SELECT starts_at
-            FROM appointments
-            WHERE site=%s
-              AND status IN ('PENDING','CONFIRMED')
-              AND starts_at >= %s AND starts_at < %s
-            """,
-            (site, start_utc, end_utc),
-        )
+        rows = []
+        try:
+            rows = self._fetch_all(
+                """
+                SELECT starts_at
+                FROM public.appointments
+                WHERE site=%s
+                  AND status IN ('PENDING','CONFIRMED')
+                  AND starts_at >= %s AND starts_at < %s
+                """,
+                (site, start_utc, end_utc),
+            )
+            logger.info("SELECT public.appointments columns=[site, starts_at, status]")
+        except Exception as e:
+            logger.exception("db error in _existing_local_slots (appointments)")
         out: List[datetime] = []
         for row in rows:
             dt = row.get("starts_at")

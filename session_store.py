@@ -1,3 +1,5 @@
+
+import logging
 """Session persistence helpers backed by Postgres."""
 
 from __future__ import annotations
@@ -83,7 +85,7 @@ def load_session(channel: str, user_key: str) -> Dict[str, Any]:
     with _conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT state FROM sessions WHERE channel=%s AND user_key=%s",
+                "SELECT state FROM public.sessions WHERE channel=%s AND user_key=%s",
                 (channel, user_key),
             )
             row = cur.fetchone()
@@ -108,31 +110,43 @@ def save_session(channel: str, user_key: str, state_dict: Dict[str, Any]) -> Non
         normalized["has_greeted"] = False
     now = datetime.now(timezone.utc)
 
-    with _conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO sessions (channel, user_key, state, updated_at)
-                VALUES (%s, %s, %s::jsonb, %s)
-                ON CONFLICT (channel, user_key)
-                DO UPDATE SET state=EXCLUDED.state, updated_at=EXCLUDED.updated_at
-                """,
-                (channel, user_key, Json(normalized), now),
-            )
-        conn.commit()
+    try:
+        with _conn() as conn:
+            with conn.cursor() as cur:
+                sql = (
+                    "INSERT INTO public.sessions (channel, user_key, state, updated_at) "
+                    "VALUES (%s, %s, %s::jsonb, %s) "
+                    "ON CONFLICT (channel, user_key) "
+                    "DO UPDATE SET state=EXCLUDED.state, updated_at=EXCLUDED.updated_at"
+                )
+                logger = logging.getLogger("anabot")
+                logger.info("UPSERT public.sessions columns=[channel, user_key, state, updated_at]")
+                cur.execute(sql, (channel, user_key, Json(normalized), now))
+            conn.commit()
+    except Exception as e:
+        logger = logging.getLogger("anabot")
+        logger.exception("db error in save_session (upsert)")
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
 
 
 def _persist_session(cur, channel: str, user_key: str, state: Dict[str, Any]) -> None:
     now = datetime.now(timezone.utc)
-    cur.execute(
-        """
-        INSERT INTO sessions (channel, user_key, state, updated_at)
-        VALUES (%s, %s, %s::jsonb, %s)
-        ON CONFLICT (channel, user_key)
-        DO UPDATE SET state=EXCLUDED.state, updated_at=EXCLUDED.updated_at
-        """,
-        (channel, user_key, Json(state), now),
+    sql = (
+        "INSERT INTO public.sessions (channel, user_key, state, updated_at) "
+        "VALUES (%s, %s, %s::jsonb, %s) "
+        "ON CONFLICT (channel, user_key) "
+        "DO UPDATE SET state=EXCLUDED.state, updated_at=EXCLUDED.updated_at"
     )
+    logger = logging.getLogger("anabot")
+    logger.info("UPSERT public.sessions columns=[channel, user_key, state, updated_at]")
+    try:
+        cur.execute(sql, (channel, user_key, Json(state), now))
+    except Exception as e:
+        logger.exception("db error in _persist_session (upsert)")
 
 
 def push_state(session: Dict[str, Any], new_state: str) -> Dict[str, Any]:
