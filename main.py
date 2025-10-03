@@ -180,52 +180,57 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     patient = agenda.get("patient") or {}
     if patient.get("dni"):
         patient_id = patient["dni"]
-    elif agenda.get("dni"):
-        patient_id = agenda["dni"]
+    def upsert_patient_and_link(user_id: str, cedula: str, nombres=None, apellidos=None, fecha_nacimiento=None, correo=None, telefono=None):
+        """
+        Inserta o actualiza paciente y enlaza la sesión actual al paciente.
+        """
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # Insertar/actualizar paciente
+        cur.execute("""
+            INSERT INTO public.patients (cedula, nombres, apellidos, fecha_nacimiento, correo, telefono)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (cedula) DO UPDATE
+            SET nombres = EXCLUDED.nombres,
+                apellidos = EXCLUDED.apellidos,
+                fecha_nacimiento = EXCLUDED.fecha_nacimiento,
+                correo = EXCLUDED.correo,
+                telefono = EXCLUDED.telefono
+            RETURNING id;
+        """, (cedula, nombres, apellidos, fecha_nacimiento, correo, telefono))
+        patient_id = cur.fetchone()[0]
 
-    final_state = SESSION_STORE.get(session_id)
-    final_state["ctx"] = payload
-    final_state["patient_id"] = patient_id
-    SESSION_STORE.set(session_id, final_state)
+        # Enlazar sesión con paciente
+        cur.execute("""
+            UPDATE public.sessions
+            SET patient_id = %s
+            WHERE user_key = %s AND channel = 'whatsapp';
+        """, (patient_id, user_id))
 
-    message = (result or {}).get("message") or "Gracias por escribirnos."
-    try:
-        db_utils.save_response(user_id, message, channel)
-    except Exception:
-        logger.exception("db error in save_response (non-blocking)")
-# --- Health DB endpoint ---
-from fastapi.responses import JSONResponse
-
-@app.get("/health/db")
-async def health_db():
-    from db_utils import db_health
-    result = db_health()
-    return JSONResponse(content=result)
-    return _append_footer(message)
+        conn.commit()
+        cur.close()
+        conn.close()
+        return patient_id
 
 
-async def tg_send_text(chat_id: str, text: str) -> None:
-    async with httpx.AsyncClient(timeout=20) as client:
-        resp = await client.post(
-            f"{TELEGRAM_API}/sendMessage",
-            json={"chat_id": chat_id, "text": text},
-        )
-        try:
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            logger.error(
-                "Telegram send error: %s %s",
-                exc.response.status_code if exc.response else "?",
-                exc.response.text if exc.response else exc,
+    async def handle_text(user_text: str, platform: str, user_id: str) -> str:
+        """
+        Maneja mensajes entrantes. Si el usuario envía su cédula, lo registra o actualiza.
+        """
+        engine = get_flow_engine()
+
+        # Detectar si el input es una cédula (10 dígitos por ejemplo)
+        if platform == "whatsapp" and user_text.isdigit() and len(user_text) in (8, 9, 10):
+            patient_id = upsert_patient_and_link(
+                user_id=user_id,
+                cedula=user_text,
+                telefono=user_id  # usamos user_id como teléfono
             )
+            return f"✅ Registro inicial con cédula {user_text}. Ahora indícame la fecha para tu cita."
 
-def ensure_schema_once() -> None:
-    global SCHEMA_READY
-    if SCHEMA_READY:
-        return
-    if not DATABASE_URL:
-        logger.warning("DATABASE_URL not set; skipping schema init")
-        SCHEMA_READY = True
+        # Si no es cédula, pasar al flujo normal
+        response_text = engine.handle_message(user_text, user_id, platform)
+        return response_text
         return
     sql_path = Path(__file__).with_name("db_init.sql")
     if not sql_path.exists():
