@@ -25,7 +25,7 @@ from utils.idempotency import mark_processed, is_processed
 from config import get_settings
 from flow_engine import FlowEngine
 from session_store import ensure_session_schema, get_session, update_session, reset_session
-from db_utils import db_health
+from db_utils import db_health, get_conn
 
 
 
@@ -183,11 +183,10 @@ def upsert_patient_and_link(user_id: str, cedula: str, nombres=None, apellidos=N
     patient_id = cur.fetchone()[0]
 
     # Enlazar sesión con paciente
-    cur.execute("""
-        UPDATE public.sessions
-        SET patient_id = %s
-        WHERE user_key = %s AND channel = 'whatsapp';
-    """, (patient_id, user_id))
+    # Enlazar sesión con paciente (ajustar si corresponde a la nueva API de session_store)
+    # update_session(user_id, platform="whatsapp", patient_id=patient_id)
+    # Si la columna patient_id no existe en sessions, agregarla en el esquema y en session_store.py
+    # Si la lógica de enlace es diferente, adaptar aquí.
 
     conn.commit()
     cur.close()
@@ -237,7 +236,7 @@ def upsert_patient_and_link(user_id: str, cedula: str, nombres=None, apellidos=N
 def get_flow_engine() -> FlowEngine:
     global FLOW_ENGINE
     if FLOW_ENGINE is None:
-        FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH), store=SESSION_STORE)
+        FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH))
     return FLOW_ENGINE
 
 
@@ -285,7 +284,9 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
         db_utils.save_response(user_id, response_text, channel)
         return response_text
 
-    state = SESSION_STORE.get(session_id)
+    # Obtener estado de sesión
+    session = get_session(user_id, platform)
+    state = session["extra"] if session and "extra" in session else {}
     ctx = state.setdefault("ctx", {})
     meta = ctx.setdefault("meta", {})
     meta["channel"] = channel
@@ -293,11 +294,11 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     meta["user_id"] = str(user_id)
     ctx["last_text"] = clean_text
     state["ctx"] = ctx
-    SESSION_STORE.set(session_id, state)
+    update_session(user_id, platform, extra=state)
 
-    result = engine.process(session_id, clean_text)
-    post_state = SESSION_STORE.snapshot(session_id)
-    payload = post_state.get("payload", {})
+    result = engine.process(f"{channel}:{user_id}", clean_text)
+    # post_state = state after process, if needed
+    payload = state.get("payload", {})
 
     patient_id = None
     agenda = payload.get("agenda") or {}
@@ -307,10 +308,10 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     elif agenda.get("dni"):
         patient_id = agenda["dni"]
 
-    final_state = SESSION_STORE.get(session_id)
-    final_state["ctx"] = payload
-    final_state["patient_id"] = patient_id
-    SESSION_STORE.set(session_id, final_state)
+    # Actualizar estado final
+    state["ctx"] = payload
+    state["patient_id"] = patient_id
+    update_session(user_id, platform, extra=state)
 
     message = (result or {}).get("message") or "Gracias por escribirnos."
     db_utils.save_response(user_id, message, channel)
