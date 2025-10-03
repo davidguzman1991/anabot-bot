@@ -1,135 +1,37 @@
-# --- Helpers para menú principal (stubs si faltan) ---
-def build_agendar_cita_menu() -> str:
-    return (
-        "🗓️ *Agendar cita médica*\n"
-        "Por favor, ingrese su número de cédula (10 dígitos) o pasaporte para continuar.\n"
-        "0️⃣ Atrás · 9️⃣ Inicio"
-    # --- 👇 SNIPPET: Registro y enlace de paciente por DNI (psycopg2) ---
+# hooks.py — header saneado
+from __future__ import annotations
 
-    import os
-    import re
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
+import os
+import logging
+from datetime import datetime, timezone, timedelta
+from typing import Any, Dict, Optional
 
-    DB_URL = os.getenv("DATABASE_URL")
+# Evita ejecutar lógica en import-time.
+# Solo definiciones, sin I/O ni prints aquí.
 
-    def db_conn():
-        return psycopg2.connect(DB_URL, cursor_factory=RealDictCursor)
+logger = logging.getLogger("anabot_hooks")
+logger.setLevel(logging.INFO)
 
-    DNI_RE = re.compile(r"\b\d{10}\b")  # ajusta si tus DNIs tienen otro formato/longitud
+# Si estos módulos existen en tu proyecto:
+try:
+    from session_store import SessionStore
+except Exception as e:
+    logger.warning("No se pudo importar SessionStore aún: %s", e)
+    SessionStore = None  # type: ignore
 
-    def ensure_session(channel: str, user_key: str):
-        """Crea la sesión si no existe; devuelve la fila de sessions."""
-        with db_conn() as conn, conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO public.sessions (channel, user_key, state, updated_at)
-                VALUES (%s, %s, '{}'::jsonb, NOW())
-                ON CONFLICT (channel, user_key) DO UPDATE
-                SET updated_at = EXCLUDED.updated_at
-                RETURNING channel, user_key, patient_dni, state;
-            """, (channel, user_key))
-            return cur.fetchone()
+try:
+    from db_utils import get_conn
+except Exception as e:
+    logger.warning("No se pudo importar get_conn aún: %s", e)
+    get_conn = None  # type: ignore
 
-    def upsert_patient(dni: str, full_name: str = None, birth_date=None,
-                       email: str = None, phone_ec: str = None, wa_user_id: str = None):
-        """Crea/actualiza paciente mínimo con dni; otros campos son opcionales."""
-        with db_conn() as conn, conn.cursor() as cur:
-            # Insert básico con columnas existentes en tu esquema actual
-            cur.execute("""
-                INSERT INTO public.patients (dni, full_name, birth_date, email, phone_ec, wa_user_id)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (dni) DO UPDATE
-                SET full_name = COALESCE(EXCLUDED.full_name, public.patients.full_name),
-                    birth_date = COALESCE(EXCLUDED.birth_date, public.patients.birth_date),
-                    email     = COALESCE(EXCLUDED.email,     public.patients.email),
-                    phone_ec  = COALESCE(EXCLUDED.phone_ec,  public.patients.phone_ec),
-                    wa_user_id= COALESCE(EXCLUDED.wa_user_id,public.patients.wa_user_id),
-                    updated_at= NOW()
-                RETURNING dni, full_name;
-            """, (dni, full_name, birth_date, email, phone_ec, wa_user_id))
-            return cur.fetchone()
+class Hooks:
+    """Contenedor de lógica de middleware/flujo. Evita ejecutar nada en import."""
+    def __init__(self, session_store: Optional[SessionStore] = None):
+        self.session_store = session_store
 
-    def link_session_to_patient(channel: str, user_key: str, dni: str):
-        """Enlaza la sesión con el paciente y registra canal idempotente."""
-        with db_conn() as conn, conn.cursor() as cur:
-            # Vincula canal (idempotente)
-            cur.execute("""
-                INSERT INTO public.patient_channels (patient_dni, channel, user_key)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (channel, user_key) DO NOTHING;
-            """, (dni, channel, user_key))
-
-            # Actualiza la sesión con el DNI
-            cur.execute("""
-                UPDATE public.sessions
-                   SET patient_dni = %s,
-                       updated_at  = NOW()
-                 WHERE channel = %s AND user_key = %s
-             RETURNING channel, user_key, patient_dni;
-            """, (dni, channel, user_key))
-            return cur.fetchone()
-
-    def get_patient_overview_by_session(channel: str, user_key: str):
-        """Devuelve (channel, user_key, patient_dni, full_name) para verificar enlace."""
-        with db_conn() as conn, conn.cursor() as cur:
-            cur.execute("""
-                SELECT s.channel, s.user_key, s.patient_dni, p.full_name
-                  FROM public.sessions s
-                  LEFT JOIN public.patients p ON p.dni = s.patient_dni
-                 WHERE s.channel = %s AND s.user_key = %s;
-            """, (channel, user_key))
-            return cur.fetchone()
-
-    def handle_patient_identification(user_text: str, channel: str, user_key: str):
-        """
-        Lógica de identificación:
-        - Si la sesión ya tiene patient_dni -> saltar registro y continuar al agendamiento.
-        - Si no tiene:
-            * Si el mensaje trae DNI válido -> crear/actualizar paciente, enlazar sesión y confirmar.
-            * Si no -> pedir DNI.
-        Devuelve (reply_text, next_state_tag) para tu motor de flujo.
-        """
-        # 1) Asegura sesión
-        sess = ensure_session(channel, user_key)
-
-        # 2) Si ya hay patient_dni, saltamos registro
-        if sess.get("patient_dni"):
-            view = get_patient_overview_by_session(channel, user_key)
-            nombre = view.get("full_name") or "el paciente"
-            return (f"Perfecto, ya te tengo registrado como {nombre}. ¿Agendamos tu cita? "
-                    f"Indícame fecha (por ej. 2025-10-05 09:30).",
-                    "ready_for_appointment")
-
-        # 3) Intentar extraer DNI del texto
-        m = DNI_RE.search(user_text or "")
-        if not m:
-            return ("Para ayudarte a agendar, ¿puedes indicarme tu número de cédula (10 dígitos)?", "ask_dni")
-
-        dni = m.group(0)
-
-        # 4) Crear/actualizar paciente con lo mínimo y enlazar
-        upsert_patient(dni=dni, wa_user_id=user_key, phone_ec=user_key)
-        link_session_to_patient(channel, user_key, dni)
-
-        view = get_patient_overview_by_session(channel, user_key)
-        nombre = view.get("full_name") or "paciente"
-
-        return (f"¡Gracias! He asociado tu número a la cédula {dni} ({nombre}). "
-                f"Ahora dime la fecha y hora para la cita (formato YYYY-MM-DD HH:MM).",
-                "ready_for_appointment")
-
-    # --- 🔗 DÓNDE LLAMAR (ejemplo dentro de tu webhook/handler) ---
-    # En tu manejador actual, cuando recibes un texto de WhatsApp, llama:
-    )
-    # reply_text, next_state = handle_patient_identification(
-    #     user_text=incoming_text,
-    #     channel="whatsapp",
-    #     user_key=from_number_e164,   # ej. "+5939...."
-    # )
-    # Luego envía reply_text al usuario y marca en tu flow/state el next_state.
-
-    # Cuando next_state == "ready_for_appointment", tu lógica debe pedir/parsear
-    # la fecha/hora y crear el registro en public.appointments.
+    def health(self) -> Dict[str, Any]:
+        return {"ok": True, "ts": datetime.now(timezone.utc).isoformat()}
 def build_reagendar_menu() -> str:
     # --- 👆 FIN DEL SNIPPET ---
     return (
