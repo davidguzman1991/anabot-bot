@@ -24,7 +24,8 @@ import db_utils
 from utils.idempotency import mark_processed, is_processed
 from config import get_settings
 from flow_engine import FlowEngine
-from session_store import FlowSessionStore
+from session_store import SessionStore
+from db_utils import db_health, get_conn
 
 
 
@@ -50,9 +51,8 @@ WA_PHONE_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
 WA_VERIFY = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
 WA_MSG_URL = "https://graph.facebook.com/v20.0/{phone_id}/messages"
 FLOW_PATH = Path(__file__).with_name("flow.json")
-SESSION_STORE = FlowSessionStore()
+SESSION_STORE = SessionStore()
 FLOW_ENGINE: FlowEngine | None = None
-SCHEMA_READY = False
 FOOTER_TEXT = "\n\n0 Atrás · 9 Inicio · 00 Humano"
 
 # Inicialización de la app
@@ -66,40 +66,20 @@ app.add_middleware(
 )
 
 
-def ensure_schema_once() -> None:
-    global SCHEMA_READY
-    if SCHEMA_READY:
-        return
-    if not DATABASE_URL:
-        logger.warning("DATABASE_URL not set; skipping schema init")
-        SCHEMA_READY = True
-        return
-    sql_path = Path(__file__).with_name("db_init.sql")
-    if not sql_path.exists():
-        SCHEMA_READY = True
-        return
-    statements = [segment.strip() for segment in sql_path.read_text(encoding="utf-8").split(";") if segment.strip()]
-    if not statements:
-        SCHEMA_READY = True
-        return
-    try:
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                for stmt in statements:
-                    cur.execute(stmt)
-            conn.commit()
-        SCHEMA_READY = True
-    except Exception:
-        logger.exception("Failed to ensure database schema")
-        raise
+@app.on_event("startup")
+def on_startup():
+    SESSION_STORE.ensure_schema()
 
 
 def get_flow_engine() -> FlowEngine:
     global FLOW_ENGINE
     if FLOW_ENGINE is None:
-        ensure_schema_once()
         FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH), store=SESSION_STORE)
     return FLOW_ENGINE
+# Endpoint de salud de base de datos
+@app.get("/health/db")
+def health_db():
+    return {"ok": db_health()}
 
 
 def _append_footer(message: str) -> str:
@@ -180,37 +160,38 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     patient = agenda.get("patient") or {}
     if patient.get("dni"):
         patient_id = patient["dni"]
-    def upsert_patient_and_link(user_id: str, cedula: str, nombres=None, apellidos=None, fecha_nacimiento=None, correo=None, telefono=None):
-        """
-        Inserta o actualiza paciente y enlaza la sesión actual al paciente.
-        """
-        conn = get_db_connection()
-        cur = conn.cursor()
-        # Insertar/actualizar paciente
-        cur.execute("""
-            INSERT INTO public.patients (cedula, nombres, apellidos, fecha_nacimiento, correo, telefono)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (cedula) DO UPDATE
-            SET nombres = EXCLUDED.nombres,
-                apellidos = EXCLUDED.apellidos,
-                fecha_nacimiento = EXCLUDED.fecha_nacimiento,
-                correo = EXCLUDED.correo,
-                telefono = EXCLUDED.telefono
-            RETURNING id;
-        """, (cedula, nombres, apellidos, fecha_nacimiento, correo, telefono))
-        patient_id = cur.fetchone()[0]
 
-        # Enlazar sesión con paciente
-        cur.execute("""
-            UPDATE public.sessions
-            SET patient_id = %s
-            WHERE user_key = %s AND channel = 'whatsapp';
-        """, (patient_id, user_id))
+def upsert_patient_and_link(user_id: str, cedula: str, nombres=None, apellidos=None, fecha_nacimiento=None, correo=None, telefono=None):
+    """
+    Inserta o actualiza paciente y enlaza la sesión actual al paciente.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    # Insertar/actualizar paciente
+    cur.execute("""
+        INSERT INTO public.patients (cedula, nombres, apellidos, fecha_nacimiento, correo, telefono)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (cedula) DO UPDATE
+        SET nombres = EXCLUDED.nombres,
+            apellidos = EXCLUDED.apellidos,
+            fecha_nacimiento = EXCLUDED.fecha_nacimiento,
+            correo = EXCLUDED.correo,
+            telefono = EXCLUDED.telefono
+        RETURNING id;
+    """, (cedula, nombres, apellidos, fecha_nacimiento, correo, telefono))
+    patient_id = cur.fetchone()[0]
 
-        conn.commit()
-        cur.close()
-        conn.close()
-        return patient_id
+    # Enlazar sesión con paciente
+    cur.execute("""
+        UPDATE public.sessions
+        SET patient_id = %s
+        WHERE user_key = %s AND channel = 'whatsapp';
+    """, (patient_id, user_id))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    return patient_id
 
 
     async def handle_text(user_text: str, platform: str, user_id: str) -> str:
@@ -255,7 +236,6 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
 def get_flow_engine() -> FlowEngine:
     global FLOW_ENGINE
     if FLOW_ENGINE is None:
-        ensure_schema_once()
         FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH), store=SESSION_STORE)
     return FLOW_ENGINE
 

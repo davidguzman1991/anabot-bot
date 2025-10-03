@@ -1,41 +1,24 @@
-import logging
+def _conn() -> Optional[extensions.connection]:
+def save_message(user_id: str, text: str, platform: str):
+
 import os
-from typing import Optional
-
 import psycopg2
-from psycopg2 import extensions
-
-logger = logging.getLogger("anabot")
+from psycopg2.extras import RealDictCursor
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-
-def _conn() -> Optional[extensions.connection]:
+def get_conn():
     if not DATABASE_URL:
-        logger.warning("DATABASE_URL not set; skipping DB writes.")
-        return None
-    return psycopg2.connect(DATABASE_URL)
+        raise RuntimeError("DATABASE_URL no configurada")
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
-
-def save_message(user_id: str, text: str, platform: str):
+def db_health():
     try:
-        conn = _conn()
-        if not conn:
-            return False
-        with conn:
-            with conn.cursor() as cur:
-                sql = "INSERT INTO public.conversation_logs (user_id, message, platform) VALUES (%s, %s, %s)"
-                logger.info("INSERT public.conversation_logs columns=[user_id, message, platform]")
-                cur.execute(sql, (user_id, text or "", platform))
-            conn.commit()
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            _ = cur.fetchone()
         return True
-    except Exception as e:
-        logger.exception("db error in save_message")
-        try:
-            if conn:
-                conn.rollback()
-        except Exception:
-            pass
+    except Exception:
         return False
 
 
