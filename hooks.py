@@ -1,39 +1,14 @@
-# hooks.py — header saneado
-from __future__ import annotations
 
-import os
-import logging
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, Optional
-
-# Evita ejecutar lógica en import-time.
-# Solo definiciones, sin I/O ni prints aquí.
-
-logger = logging.getLogger("anabot_hooks")
-logger.setLevel(logging.INFO)
-
-# Si estos módulos existen en tu proyecto:
-try:
-    from session_store import SessionStore
-except Exception as e:
-    logger.warning("No se pudo importar SessionStore aún: %s", e)
-    SessionStore = None  # type: ignore
-
-try:
-    from db_utils import get_conn
-except Exception as e:
-    logger.warning("No se pudo importar get_conn aún: %s", e)
-    get_conn = None  # type: ignore
+from datetime import datetime, timezone
+from typing import Any, Dict
 
 class Hooks:
     """Contenedor de lógica de middleware/flujo. Evita ejecutar nada en import."""
-    def __init__(self, session_store: Optional[SessionStore] = None):
-        self.session_store = session_store
-
     def health(self) -> Dict[str, Any]:
         return {"ok": True, "ts": datetime.now(timezone.utc).isoformat()}
+
+# Helpers locales
 def build_reagendar_menu() -> str:
-    # --- 👆 FIN DEL SNIPPET ---
     return (
         "🔄 *Reagendar o cancelar cita*\n"
         "Por favor, indique el número de su cita o escriba 'ayuda' para asistencia.\n"
@@ -53,11 +28,6 @@ def build_hablar_con_doctor_message() -> str:
         "Un asesor se pondrá en contacto contigo pronto.\n"
         "0️⃣ Atrás · 9️⃣ Inicio"
     )
-# --- Inactivity constants ---
-INACTIVITY_MINUTES = 20
-
-# --- Greeting/menu helpers actualizados ---
-## Eliminado: get_main_menu_text, send_greeting_with_menu
 # --- Inactivity middleware for incoming messages ---
 from session_store import get_session, update_session, reset_session
 from datetime import datetime, timezone, timedelta

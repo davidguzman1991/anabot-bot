@@ -1,8 +1,24 @@
+
+{
+  "version": "6.0",
+  "globals": {},
+  "defaultStartNode": "MENU_PRINCIPAL",
+  "nodes": [
     {
-      "version": "6.0",
-      "globals": {},
-      "defaultStartNode": "MENU_PRINCIPAL",
-      "nodes": []
+      "id": "MENU_PRINCIPAL",
+      "type": "choice",
+      "text": "Bienvenido. Selecciona una opción:\n1. Agendar cita\n2. Reagendar\n3. Consultar cita\n4. Hablar con doctor\n5. Información\n0. Atrás\n9. Inicio",
+      "choices": [
+        {"value": "1", "label": "Agendar cita"},
+        {"value": "2", "label": "Reagendar"},
+        {"value": "3", "label": "Consultar cita"},
+        {"value": "4", "label": "Hablar con doctor"},
+        {"value": "5", "label": "Información"},
+        {"value": "0", "label": "Atrás"},
+        {"value": "9", "label": "Inicio"}
+      ]
     }
+  ]
+}
 
 

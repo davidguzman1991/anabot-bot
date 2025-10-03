@@ -1,5 +1,3 @@
-def _conn() -> Optional[extensions.connection]:
-def save_message(user_id: str, text: str, platform: str):
 
 import os
 import psycopg2
@@ -21,28 +19,21 @@ def db_health():
     except Exception:
         return False
 
+def fetchone(query, params=None):
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(query, params or ())
+        return cur.fetchone()
 
-def save_response(user_id: str, text: str, platform: str):
-    try:
-        conn = _conn()
-        if not conn:
-            return False
-        with conn:
-            with conn.cursor() as cur:
-                # status y handoff pueden ser opcionales
-                sql = "INSERT INTO public.conversation_logs (user_id, response, platform, status) VALUES (%s, %s, %s, %s)"
-                logger.info("INSERT public.conversation_logs columns=[user_id, response, platform, status]")
-                cur.execute(sql, (user_id, text or "", platform, "pendiente"))
-            conn.commit()
-        return True
-    except Exception as e:
-        logger.exception("db error in save_response")
-        try:
-            if conn:
-                conn.rollback()
-        except Exception:
-            pass
-        return False
+def fetchall(query, params=None):
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(query, params or ())
+        return cur.fetchall()
+
+def execute(query, params=None):
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(query, params or ())
+        conn.commit()
+        return cur.rowcount
 
 
 def log_handoff(user_id: str, last_text: str, platform: str = "wa"):
