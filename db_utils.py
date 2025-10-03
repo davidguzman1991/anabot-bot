@@ -1,3 +1,16 @@
+import time
+
+def wait_for_db(max_attempts: int = 10, delay: float = 1.5):
+    for i in range(1, max_attempts + 1):
+        try:
+            with get_conn() as conn, conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                _ = cur.fetchone()
+            return True
+        except Exception as e:
+            print(f"[DB] intento {i}/{max_attempts} falló: {e}")
+            time.sleep(delay)
+    return False
 
 import os
 import psycopg2

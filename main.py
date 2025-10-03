@@ -25,7 +25,7 @@ from utils.idempotency import mark_processed, is_processed
 from config import get_settings
 from flow_engine import FlowEngine
 from session_store import ensure_session_schema, get_session, update_session, reset_session
-from db_utils import db_health, get_conn
+from db_utils import db_health, get_conn, wait_for_db
 
 
 
@@ -69,7 +69,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    ensure_session_schema()
+    ok = wait_for_db()
+    if not ok:
+        print("[STARTUP] BD no disponible tras reintentos; continuando y reintentaremos en la primera petición.")
+    else:
+        ensure_session_schema()
 
 
 def get_flow_engine() -> FlowEngine:
@@ -77,6 +81,7 @@ def get_flow_engine() -> FlowEngine:
     if FLOW_ENGINE is None:
         FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH))
     return FLOW_ENGINE
+
 # Endpoint de salud de base de datos
 @app.get("/health/db")
 def health_db():
@@ -103,7 +108,7 @@ async def log_routes() -> None:
 
 
 @app.get("/health")
-async def health() -> dict[str, bool]:
+def health():
     return {"ok": True}
 
 
@@ -383,43 +388,46 @@ async def wa_verify(
 
 
 @app.post("/webhook/whatsapp")
-async def wa_webhook(request: Request) -> dict[str, bool]:
-    body = await request.json()
+async def wa_webhook(request: Request):
     try:
-        entry = (body.get("entry") or [{}])[0]
-        changes = (entry.get("changes") or [{}])[0]
-        value = changes.get("value") or {}
-        messages = value.get("messages") or []
-        statuses = value.get("statuses") or []
+        body = await request.json()
+        try:
+            entry = (body.get("entry") or [{}])[0]
+            changes = (entry.get("changes") or [{}])[0]
+            value = changes.get("value") or {}
+            messages = value.get("messages") or []
+            statuses = value.get("statuses") or []
 
-        for message in messages:
-            from_number = message.get("from")
-            msg_type = message.get("type")
-            if not from_number:
-                continue
-            user_text = ""
-            if msg_type == "text":
-                user_text = message["text"].get("body", "")
-            elif msg_type == "reaction":
-                user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
+            for message in messages:
+                from_number = message.get("from")
+                msg_type = message.get("type")
+                if not from_number:
+                    continue
+                user_text = ""
+                if msg_type == "text":
+                    user_text = message["text"].get("body", "")
+                elif msg_type == "reaction":
+                    user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
 
-            try:
-                response_text = await handle_text(user_text, platform="whatsapp", user_id=from_number)
-            except Exception:
-                logger.exception("WhatsApp handle_text failed")
-                response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
-
-            if response_text:
                 try:
-                    await wa_send_text(from_number, response_text)
+                    response_text = await handle_text(user_text, platform="whatsapp", user_id=from_number)
                 except Exception:
-                    logger.exception("WhatsApp response delivery failed")
+                    logger.exception("WhatsApp handle_text failed")
+                    response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
 
-        if statuses:
-            logger.info("WA statuses: %s", json.dumps(statuses)[:200])
-    except Exception:
-        logger.exception("WhatsApp webhook processing failed")
-    return {"ok": True}
+                if response_text:
+                    try:
+                        await wa_send_text(from_number, response_text)
+                    except Exception:
+                        logger.exception("WhatsApp response delivery failed")
+
+            if statuses:
+                logger.info("WA statuses: %s", json.dumps(statuses)[:200])
+        except Exception:
+            logger.exception("WhatsApp webhook processing failed")
+    except Exception as e:
+        import traceback; print("[WA] error:", e); traceback.print_exc()
+    return {"status": "ok"}
 
 
 @app.post("/telegram/webhook")
