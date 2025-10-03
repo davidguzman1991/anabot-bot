@@ -24,8 +24,8 @@ import db_utils
 from utils.idempotency import mark_processed, is_processed
 from config import get_settings
 from flow_engine import FlowEngine
-from session_store import SessionStore
-from db_utils import db_health, get_conn
+from session_store import ensure_session_schema, get_session, update_session, reset_session
+from db_utils import db_health
 
 
 
@@ -51,7 +51,7 @@ WA_PHONE_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
 WA_VERIFY = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
 WA_MSG_URL = "https://graph.facebook.com/v20.0/{phone_id}/messages"
 FLOW_PATH = Path(__file__).with_name("flow.json")
-SESSION_STORE = SessionStore()
+
 FLOW_ENGINE: FlowEngine | None = None
 FOOTER_TEXT = "\n\n0 Atrás · 9 Inicio · 00 Humano"
 
@@ -66,15 +66,16 @@ app.add_middleware(
 )
 
 
+
 @app.on_event("startup")
 def on_startup():
-    SESSION_STORE.ensure_schema()
+    ensure_session_schema()
 
 
 def get_flow_engine() -> FlowEngine:
     global FLOW_ENGINE
     if FLOW_ENGINE is None:
-        FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH), store=SESSION_STORE)
+        FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH))
     return FLOW_ENGINE
 # Endpoint de salud de base de datos
 @app.get("/health/db")
@@ -132,7 +133,7 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
             logger.exception("db error in save_response (non-blocking)")
         return response_text
 
-    state = SESSION_STORE.get(session_id)
+    state = get_session(user_id, channel) or {}
     ctx = state.setdefault("ctx", {})
     meta = ctx.setdefault("meta", {})
     meta["channel"] = channel
@@ -140,7 +141,7 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
     meta["user_id"] = str(user_id)
     ctx["last_text"] = clean_text
     state["ctx"] = ctx
-    SESSION_STORE.set(session_id, state)
+    update_session(user_id, channel, **state)
 
     # Nuevo: interceptar saludo/menu inicial
     route_result = engine.hooks.route_input(state, clean_text)
@@ -152,8 +153,8 @@ async def handle_text(user_text: str, platform: str, user_id: str) -> str:
         return _append_footer(route_result)
 
     result = engine.process(session_id, clean_text)
-    post_state = SESSION_STORE.snapshot(session_id)
-    payload = post_state.get("payload", {})
+    # post_state = SESSION_STORE.snapshot(session_id)
+    payload = state.get("payload", {})
 
     patient_id = None
     agenda = payload.get("agenda") or {}
