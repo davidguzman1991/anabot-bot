@@ -32,7 +32,10 @@ WHATSAPP_TOKEN = (
     or os.getenv("TOKEN")
 )
 
-GRAPH_URL = f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages" if PHONE_NUMBER_ID else None
+GRAPH_URL = (
+    f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages"
+    if PHONE_NUMBER_ID else None
+)
 
 app = FastAPI(title="AnaBot", version="1.0")
 
@@ -47,12 +50,15 @@ def health():
 
 @app.get("/health/db")
 def health_db():
-    # Este endpoint sólo demuestra que el servicio corre; tu chequeo real de DB ya lo ves arriba.
-    # Si quieres, importa ensure_session_schema aquí y muestra columnas como antes.
-    return {"ok": True, "db": "postgres", "sessions_columns": [
-        "id", "user_id", "platform", "last_activity_ts", "has_greeted",
-        "current_state", "status", "extra", "canal", "user_key"
-    ]}
+    # Ejemplo simple para ver columnas esperadas de 'sessions'
+    return {
+        "ok": True,
+        "db": "postgres",
+        "sessions_columns": [
+            "id", "user_id", "platform", "last_activity_ts", "has_greeted",
+            "current_state", "status", "extra", "canal", "user_key",
+        ],
+    }
 
 # ---------- WHATSAPP SEND ----------
 async def wa_send_text(to: str, text: str) -> tuple[int, dict]:
@@ -62,40 +68,49 @@ async def wa_send_text(to: str, text: str) -> tuple[int, dict]:
 
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
     payload = {
         "messaging_product": "whatsapp",
         "to": to,
         "type": "text",
-        "text": {"body": text}
+        "text": {"body": text},
     }
+
     async with httpx.AsyncClient(timeout=20) as client:
         r = await client.post(GRAPH_URL, headers=headers, json=payload)
-    # Log útil para depurar
+
     try:
         body = r.json()
     except Exception:
         body = {"raw": r.text}
+
     log.info("WA send → %s %s", r.status_code, body)
     return r.status_code, body
 
 # ---------- WEBHOOK VERIFY ----------
 @app.get("/webhook/whatsapp")
-def wa_verify(mode: str | None = None,
-              hub_mode: str | None = None,
-              hub_challenge: str | None = None,
-              hub_verify_token: str | None = None,
-              hub_topic: str | None = None):
+def wa_verify(
+    mode: str | None = None,
+    hub_mode: str | None = None,
+    hub_challenge: str | None = None,
+    hub_verify_token: str | None = None,
+    hub_topic: str | None = None,
+):
     # Meta envía params como hub.mode, hub.verify_token, hub.challenge
-    mode = mode or hub_mode  # por si el proxy los renombra
+    mode = mode or hub_mode  # por si algún proxy renombra
     token = hub_verify_token
     challenge = hub_challenge
 
     if mode == "subscribe" and token and VERIFY_TOKEN and token == VERIFY_TOKEN:
         log.info("Webhook verificado OK")
         return PlainTextResponse(challenge or "", status_code=200)
-    log.warning("Fallo verificación webhook: mode=%s token_ok=%s", mode, bool(token and VERIFY_TOKEN and token == VERIFY_TOKEN))
+
+    log.warning(
+        "Fallo verificación webhook: mode=%s token_ok=%s",
+        mode,
+        bool(token and VERIFY_TOKEN and token == VERIFY_TOKEN),
+    )
     return Response(status_code=403)
 
 # ---------- WEBHOOK INCOMING ----------
@@ -105,6 +120,7 @@ async def wa_webhook(req: Request) -> Response:
         body = await req.json()
     except Exception:
         body = {}
+
     log.info("WA webhook IN: %s", json.dumps(body, ensure_ascii=False))
 
     # Estructura típica de WhatsApp Cloud
@@ -115,7 +131,7 @@ async def wa_webhook(req: Request) -> Response:
             value = ch.get("value", {})
             messages = value.get("messages", [])
             for msg in messages:
-                wa_from = msg.get("from")               # número del usuario (E.164 sin +)
+                wa_from = msg.get("from")       # número E.164 sin '+'
                 mtype   = msg.get("type")
                 text_in = ""
                 if mtype == "text":
