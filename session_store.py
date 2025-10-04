@@ -1,3 +1,4 @@
+from psycopg2 import Error as PGError
 # session_store.py — rewrite from scratch (robusto e idempotente)
 from __future__ import annotations
 from typing import Optional, Dict, Any
@@ -121,9 +122,17 @@ def upsert_session(user_id: str, platform: str, current_state: str = "idle", cha
     current_state = EXCLUDED.current_state
   ;
   """
-  with get_conn() as conn, conn.cursor() as cur:
-    cur.execute(sql_insert, (user_id, platform, channel, current_state))
-    conn.commit()
+  try:
+    with get_conn() as conn, conn.cursor() as cur:
+      cur.execute(sql_insert, (user_id, platform, channel, current_state))
+      conn.commit()
+  except PGError as e:
+    import logging
+    logging.getLogger("sessions").exception(
+      "UPSERT sessions falló | sql=%s | params=%s | pgcode=%s | pgerror=%s",
+      sql_insert, (user_id, platform, channel, current_state), getattr(e, "pgcode", None), getattr(e, "pgerror", None)
+    )
+    raise
 
   return get_session(user_id, platform)  # type: ignore[return-value]
 
