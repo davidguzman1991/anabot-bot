@@ -65,8 +65,26 @@ def get_hooks() -> Hooks:
 
 @app.on_event("startup")
 def bootstrap():
+
     wait_for_db()
     ensure_session_schema()
+    # 🧠 Diagnóstico: muestra la base, esquema y columnas reales vistas por la app
+    try:
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT current_database(), current_schema(), inet_server_addr()::text;")
+            db, schema, host = cur.fetchone()
+            log.info(f"✅ DB conectada: {db} | Esquema: {schema} | Host: {host}")
+
+            cur.execute("""
+                SELECT string_agg(column_name, ', ' ORDER BY ordinal_position)
+                FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='sessions';
+            """)
+            cols = cur.fetchone()[0]
+            log.info(f"🧩 Columnas visibles en public.sessions: {cols}")
+    except Exception as e:
+        log.error(f"Error al obtener diagnóstico de BD: {e}")
+
     # precargar engine para validar flow.json al arranque
     eng = get_engine()
     log.info("Flow cargado: nodes=%s edges=%s start=%s", len(eng.nodes), len(eng.edges), eng.start_node)
