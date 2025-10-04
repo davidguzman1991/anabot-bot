@@ -29,7 +29,7 @@ class Hooks:
 
         # 4) persistir y responder (o fallback)
         if out:
-            upsert_session(user_id, platform, current_state=out["next"])
+            upsert_session(user_id, platform, current_state=out["next"], channel=platform)
             touch_session(user_id, platform)
             return "\n".join(out["reply"])
 

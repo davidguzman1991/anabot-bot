@@ -103,61 +103,29 @@ def get_session(user_id: str, platform: str) -> Optional[Dict[str, Any]]:
         row = cur.fetchone()
         return dict(row) if row else None
 
-def upsert_session(user_id: str, platform: str, **fields: Any) -> Dict[str, Any]:
-    """
-    Inserta o actualiza (merge) una sesión.
-    Si 'extra' viene como dict, se mergea sobre el JSON existente.
-    """
-    # Separar 'extra' del resto
-    extra_new = fields.pop("extra", None)
-    # Campos escalares permitidos
-    scalars = {k: v for k, v in fields.items()
-               if k in {"has_greeted", "current_state", "status", "last_activity_ts"}}
 
-    # 1) Asegurar existencia con INSERT ... ON CONFLICT (no pisa valores aún)
-    sql_insert = """
-    INSERT INTO public.sessions (user_id, platform, last_activity_ts)
-    VALUES (%s, %s, %s)
-    ON CONFLICT (user_id, platform) DO NOTHING
-    """
-    # 2) Si hay escalares, actualizarlos
-    set_clauses = []
-    params = []
-    for k, v in scalars.items():
-        set_clauses.append(f"{k} = %s")
-        params.append(v)
-    if set_clauses:
-        sql_update_scalars = f"""
-        UPDATE public.sessions
-        SET {", ".join(set_clauses)}, last_activity_ts = %s
-        WHERE user_id = %s AND platform = %s
-        """
-        params.extend([_now(), user_id, platform])
-    else:
-        sql_update_scalars = None
+def upsert_session(user_id: str, platform: str, current_state: str = "idle", channel: str = "whatsapp") -> Dict[str, Any]:
+  """
+  Inserta o actualiza (merge) una sesión.
+  """
+  # Sanity: si viene vacío, fuerza un valor
+  channel = channel or platform or "whatsapp"
 
-    # 3) Merge JSONB si corresponde
-    if isinstance(extra_new, dict):
-        sql_merge_extra = """
-        UPDATE public.sessions
-        SET extra = COALESCE(extra, '{}'::jsonb) || %s::jsonb,
-            last_activity_ts = %s
-        WHERE user_id = %s AND platform = %s
-        """
-        params_extra = [json.dumps(extra_new), _now(), user_id, platform]
-    else:
-        sql_merge_extra = None
-        params_extra = None
+  sql_insert = """
+  INSERT INTO public.sessions (user_id, platform, channel, last_activity_ts, has_greeted, current_state, status, extra)
+  VALUES (%s, %s, %s, NOW(), FALSE, %s, 'pendiente', '{}'::jsonb)
+  ON CONFLICT (user_id, platform)
+  DO UPDATE SET
+    channel = EXCLUDED.channel,
+    last_activity_ts = NOW(),
+    current_state = EXCLUDED.current_state
+  ;
+  """
+  with get_conn() as conn, conn.cursor() as cur:
+    cur.execute(sql_insert, (user_id, platform, channel, current_state))
+    conn.commit()
 
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(sql_insert, (user_id, platform, _now()))
-        if sql_update_scalars:
-            cur.execute(sql_update_scalars, tuple(params))
-        if sql_merge_extra:
-            cur.execute(sql_merge_extra, tuple(params_extra))
-        conn.commit()
-
-    return get_session(user_id, platform)  # type: ignore[return-value]
+  return get_session(user_id, platform)  # type: ignore[return-value]
 
 def update_session(user_id: str, platform: str, **fields: Any) -> Dict[str, Any]:
     """Alias de upsert_session (actualiza siempre que exista; si no, crea)."""
