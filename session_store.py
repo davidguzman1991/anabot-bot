@@ -4,23 +4,34 @@ from db_utils import get_conn
 SESSIONS_TABLE = "public.sessions"
 
 def ensure_session_schema() -> None:
-    stmt = f"""
-    CREATE TABLE IF NOT EXISTS {SESSIONS_TABLE} (
-      id SERIAL PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      platform TEXT NOT NULL,
-      last_activity_ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      has_greeted BOOLEAN NOT NULL DEFAULT FALSE,
-      current_state TEXT NOT NULL DEFAULT 'idle',
-      status TEXT NOT NULL DEFAULT 'pendiente',
-      extra JSONB NOT NULL DEFAULT '{{}}'::jsonb,
-      UNIQUE (user_id, platform)
-    );
-    CREATE INDEX IF NOT EXISTS idx_sessions_user_platform
-      ON {SESSIONS_TABLE} (user_id, platform);
+    ddl = """
+    CREATE TABLE IF NOT EXISTS public.sessions (id SERIAL PRIMARY KEY);
+    ALTER TABLE public.sessions
+      ADD COLUMN IF NOT EXISTS user_id TEXT,
+      ADD COLUMN IF NOT EXISTS platform TEXT,
+      ADD COLUMN IF NOT EXISTS last_activity_ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS has_greeted BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS current_state TEXT NOT NULL DEFAULT 'idle',
+      ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pendiente',
+      ADD COLUMN IF NOT EXISTS extra JSONB NOT NULL DEFAULT '{}'::jsonb;
+    UPDATE public.sessions SET platform='whatsapp' WHERE platform IS NULL;
+    ALTER TABLE public.sessions
+      ALTER COLUMN user_id SET NOT NULL,
+      ALTER COLUMN platform SET NOT NULL;
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind='i' AND c.relname='idx_sessions_user_platform' AND n.nspname='public'
+      ) THEN
+        CREATE UNIQUE INDEX idx_sessions_user_platform ON public.sessions(user_id, platform);
+      END IF;
+    END$$;
     """
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(stmt)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(ddl)
         conn.commit()
 
 def get_session(user_id: str, platform: str = "whatsapp") -> Optional[Dict[str, Any]]:

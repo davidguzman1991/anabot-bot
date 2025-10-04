@@ -1,4 +1,3 @@
-# db_utils.py — versión estable
 import os
 import time
 import logging
@@ -7,7 +6,6 @@ from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger("db")
 logger.setLevel(logging.INFO)
-
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_conn():
@@ -16,7 +14,6 @@ def get_conn():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 def wait_for_db(max_attempts: int = 10, delay: float = 1.5) -> bool:
-    """Intenta conectar varias veces antes de rendirse (para containers que arrancan lento)."""
     for i in range(1, max_attempts + 1):
         try:
             with get_conn() as conn, conn.cursor() as cur:
@@ -30,7 +27,6 @@ def wait_for_db(max_attempts: int = 10, delay: float = 1.5) -> bool:
     return False
 
 def db_health() -> bool:
-    """True si la BD responde; False si no."""
     try:
         with get_conn() as conn, conn.cursor() as cur:
             cur.execute("SELECT 1")

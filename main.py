@@ -57,6 +57,7 @@ FOOTER_TEXT = "\n\n0 Atrás · 9 Inicio · 00 Humano"
 
 # Inicialización de la app
 app = FastAPI(title="AnaBot", version="1.0.0")
+startup_log = logging.getLogger("startup")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -70,10 +71,13 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     ok = wait_for_db()
-    if not ok:
-        print("[STARTUP] BD no disponible tras reintentos; continuando y reintentaremos en la primera petición.")
-    else:
-        ensure_session_schema()
+    startup_log.info("DB wait_for_db: %s", ok)
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT current_database(), current_schema()")
+        row = cur.fetchone()
+        startup_log.info("Connected to DB=%s schema=%s", row[0], row[1])
+    ensure_session_schema()
+    startup_log.info("sessions schema ensured")
 
 
 def get_flow_engine() -> FlowEngine:
