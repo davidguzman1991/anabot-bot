@@ -16,7 +16,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from db_utils import wait_for_db
+from db_utils import wait_for_db, get_conn
 from session_store import ensure_session_schema
 from flow_engine import FlowEngine
 from hooks import Hooks
