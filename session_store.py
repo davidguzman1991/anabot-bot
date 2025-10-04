@@ -1,4 +1,13 @@
 import logging
+from __future__ import annotations
+import logging
+from typing import Optional, Dict, Any
+import psycopg2
+from psycopg2.extras import RealDictCursor, Json
+import os
+from datetime import datetime, timezone
+import json
+
 slog = logging.getLogger("sessions")
 # session_store.py — rewrite from scratch (robusto e idempotente)
 from psycopg2 import Error as PGError
@@ -173,31 +182,54 @@ def get_session(user_id: str, platform: str) -> Optional[Dict[str, Any]]:
 
 
 def upsert_session(
-  user_id: str,
-  platform: str,
-  current_state: str = "idle",
-  *,
-  has_greeted: bool | None = None,
-  status: str | None = None,
-  extra: dict | None = None,
-):
-  if not user_id or not platform:
-    return
-
-  canal = platform or "whatsapp"  # ← valor por defecto seguro
-  has_greeted = bool(has_greeted) if has_greeted is not None else False
-  status = status or "ok"
-  extra_json = json.dumps(extra or {})
-
-  # columnas en español que existen en tu tabla
-  sql = """
-  INSERT INTO public.sessions
-    (canal, id_usuario, plataforma, estado_actual, ha_saludado, estado, extra, última_actividad_ts)
-  VALUES
-    (%s,     %s,         %s,         %s,           %s,           %s,     %s,    NOW())
-  ON CONFLICT (id_usuario, plataforma)
-  DO UPDATE SET
-    canal = EXCLUDED.canal,
+    user_id: str,
+    platform: str,
+    current_state: str,
+    has_greeted: bool,
+    status: str,
+    extra: Optional[Dict[str, Any]] = None,
+    canal: str = "whatsapp",
+) -> None:
+    """
+    Inserta o actualiza la fila de sesión (user_id, platform) con los campos dados.
+    Requiere que la tabla public.sessions tenga las columnas:
+      id (PK), user_id, platform, last_activity_ts, has_greeted, current_state, status, extra, canal
+    y un índice único en (user_id, platform).
+    """
+    sql = """
+        INSERT INTO public.sessions
+            (user_id, platform, current_state, has_greeted, status, extra, last_activity_ts, canal)
+        VALUES
+            (%s, %s, %s, %s, %s, %s, NOW(), %s)
+        ON CONFLICT (user_id, platform)
+        DO UPDATE SET
+            current_state   = EXCLUDED.current_state,
+            has_greeted     = EXCLUDED.has_greeted,
+            status          = EXCLUDED.status,
+            extra           = EXCLUDED.extra,
+            last_activity_ts= NOW(),
+            canal           = EXCLUDED.canal;
+    """
+    vals = (
+        user_id,
+        platform,
+        current_state,
+        has_greeted,
+        status,
+        Json(extra or {}),  # guarda dict en jsonb
+        canal,
+    )
+    conn = get_conn()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, vals)
+                # logging.getLogger("anabot").info("UPSERT OK: user_id=%s platform=%s", user_id, platform)  # opcional
+    except Exception as e:
+        logging.getLogger("anabot").error("UPSERT sessions falló: %s", e, exc_info=True)
+        raise
+    finally:
+        conn.close()
     estado_actual = EXCLUDED.estado_actual,
     ha_saludado   = EXCLUDED.ha_saludado,
     estado        = EXCLUDED.estado,
