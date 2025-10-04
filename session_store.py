@@ -112,6 +112,14 @@ def get_session(user_id: str, platform: str) -> Optional[Dict[str, Any]]:
         row = cur.fetchone()
         return dict(row) if row else None
 
+def _has_column(conn, table: str, column: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema='public' AND table_name=%s AND column_name=%s
+        """, (table, column))
+        return cur.fetchone() is not None
 def upsert_session(
     user_id: str,
     platform: str,
