@@ -1,223 +1,192 @@
-# session_store.py — versión estable y idempotente
+# main.py — FastAPI entrypoint para AnaBot
+
 from __future__ import annotations
 
 import os
-import json
 import logging
-from typing import Optional, Dict, Any
-from datetime import datetime, timezone
+from typing import Any, Dict, Optional, Tuple
 
-import psycopg2
-from psycopg2 import Error as PGError
-from psycopg2.extras import RealDictCursor, Json
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse, PlainTextResponse
+
+from session_store import ensure_session_schema, get_conn, upsert_session, touch_session
 
 log = logging.getLogger("anabot")
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
-# ----------------------------------------------------------------------
-# Conexión
-# ----------------------------------------------------------------------
-DATABASE_URL = os.getenv("DATABASE_URL")
+# === Config ===
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "verify-token-dev")
+ENV = os.getenv("ENV", "production")
 
-def get_conn():
-    if not DATABASE_URL:
-        raise RuntimeError("DATABASE_URL no está configurado")
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+app = FastAPI(title="AnaBot", version="1.0.0")
 
-# ----------------------------------------------------------------------
-# Utilidades de esquema
-# ----------------------------------------------------------------------
-def _column_exists(cur, table: str, column: str) -> bool:
-    cur.execute(
-        """
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name   = %s
-          AND column_name  = %s
-        """,
-        (table, column),
-    )
-    return cur.fetchone() is not None
+# -------------------------------------------------------------------
+# Hooks (lazy import para evitar ciclos)
+# -------------------------------------------------------------------
+_hooks: Optional["Hooks"] = None
 
-def ensure_session_schema() -> None:
-    """
-    Crea/ajusta la tabla public.sessions de forma idempotente.
-    Columnas objetivo:
-      id (PK), user_id, platform, current_state, has_greeted, status,
-      extra (jsonb), last_activity_ts (timestamptz), canal (text)
-    Índice único en (user_id, platform)
-    """
-    with get_conn() as conn, conn.cursor() as cur:
-        # 1) Tabla base
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS public.sessions (
-              id               SERIAL PRIMARY KEY,
-              user_id          TEXT NOT NULL,
-              platform         TEXT NOT NULL,
-              current_state    TEXT NOT NULL DEFAULT 'idle',
-              has_greeted      BOOLEAN NOT NULL DEFAULT FALSE,
-              status           TEXT NOT NULL DEFAULT 'ok',
-              extra            JSONB NOT NULL DEFAULT '{}'::jsonb,
-              last_activity_ts TIMESTAMPTZ NOT NULL DEFAULT now()
-            );
-            """
-        )
+def get_hooks():
+    global _hooks
+    if _hooks is None:
+        # Import aquí para evitar circular imports si hooks.py importa algo de main
+        from hooks import Hooks
+        _hooks = Hooks()
+    return _hooks
 
-        # 2) Columna 'canal' (necesaria para WhatsApp/Telegram)
-        if not _column_exists(cur, "sessions", "canal"):
-            log.info("schema: agregando columna 'canal'…")
-            cur.execute(
-                "ALTER TABLE public.sessions ADD COLUMN canal TEXT NOT NULL DEFAULT 'whatsapp';"
-            )
-
-        # 3) Índice único lógico por (user_id, platform)
-        cur.execute(
-            """
-            DO $$
-            BEGIN
-              IF NOT EXISTS (
-                SELECT 1
-                FROM pg_indexes
-                WHERE schemaname = 'public'
-                  AND indexname  = 'sessions_user_platform_key'
-              ) THEN
-                EXECUTE 'CREATE UNIQUE INDEX sessions_user_platform_key ON public.sessions (user_id, platform)';
-              END IF;
-            END $$;
-            """
-        )
-
-        conn.commit()
-        log.info("schema: ensure_session_schema() OK")
-
-# ----------------------------------------------------------------------
-# Helpers CRUD de sesión
-# ----------------------------------------------------------------------
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-def get_session(user_id: str, platform: str) -> Optional[Dict[str, Any]]:
-    """
-    Devuelve la fila de sesión como dict o None.
-    """
-    sql = """
-        SELECT id, user_id, platform, current_state, has_greeted,
-               status, extra, last_activity_ts, canal
-        FROM public.sessions
-        WHERE user_id = %s AND platform = %s
-        """
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(sql, (user_id, platform))
-        row = cur.fetchone()
-        return dict(row) if row else None
-
-def upsert_session(
-    user_id: str,
-    platform: str,
-    current_state: str,
-    has_greeted: bool,
-    status: str = "ok",
-    extra: Optional[Dict[str, Any]] = None,
-    canal: str = "whatsapp",
-) -> None:
-    """
-    Inserta o actualiza (user_id, platform) y refresca last_activity_ts.
-    Requiere índice único en (user_id, platform).
-    """
-    if not canal:
-        canal = platform or "whatsapp"
-
-    sql = """
-        INSERT INTO public.sessions
-            (user_id, platform, current_state, has_greeted, status, extra, last_activity_ts, canal)
-        VALUES
-            (%s, %s, %s, %s, %s, %s::jsonb, NOW(), %s)
-        ON CONFLICT (user_id, platform)
-        DO UPDATE SET
-            current_state     = EXCLUDED.current_state,
-            has_greeted       = EXCLUDED.has_greeted,
-            status            = EXCLUDED.status,
-            extra             = EXCLUDED.extra,
-            last_activity_ts  = NOW(),
-            canal             = EXCLUDED.canal;
-        """
-    vals = (
-        user_id,
-        platform,
-        current_state,
-        has_greeted,
-        status,
-        Json(extra or {}),
-        canal,
-    )
-
-    conn = get_conn()
+# -------------------------------------------------------------------
+# Utilidades
+# -------------------------------------------------------------------
+def _db_boot_log() -> None:
+    """Loguea DB y columnas de sessions (útil para depurar)."""
     try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, vals)
-    except PGError as e:
-        log.error(
-            "UPSERT sessions falló | pgcode=%s | pgerror=%s",
-            getattr(e, "pgcode", None),
-            getattr(e, "pgerror", str(e)),
-        )
-        raise
-    finally:
-        conn.close()
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT current_database() AS db, current_user AS usr;")
+            row = cur.fetchone()
+            db, usr = row["db"], row["usr"]
 
-def update_session(user_id: str, platform: str, **fields: Any) -> None:
-    """
-    Alias conveniente que reusa upsert_session para actualizar/crear.
-    Campos esperados: current_state, has_greeted, status, extra, canal
-    """
-    current_state = fields.get("current_state", "idle")
-    has_greeted   = fields.get("has_greeted", False)
-    status        = fields.get("status", "ok")
-    extra         = fields.get("extra")
-    canal         = fields.get("canal", "whatsapp")
-    upsert_session(user_id, platform, current_state, has_greeted, status, extra, canal)
+            cur.execute("SELECT inet_server_addr()::text AS host;")
+            host = (cur.fetchone() or {}).get("host")
 
-def touch_session(user_id: str, platform: str) -> None:
-    """
-    Solo actualiza last_activity_ts; si no existe, crea fila mínima.
-    """
-    conn = get_conn()
+            cur.execute("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='sessions'
+                ORDER BY ordinal_position;
+            """)
+            cols = [r["column_name"] for r in cur.fetchall()]
+
+            log.info("✅ DB conectada: %s | schema: public | host: %s", db, host)
+            log.info("🧩 Columns sessions: %s", ", ".join(cols))
+    except Exception as e:
+        log.exception("No se pudo loguear metadata de DB: %s", e)
+
+def _extract_wa_message(body: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+    """Extrae (user_id, text) desde el payload de WhatsApp Cloud API."""
+    user_id = body.get("from") or body.get("user") or body.get("user_id")
+    text = body.get("text") or body.get("message") or body.get("body")
+
+    if user_id and (text is not None):
+        return str(user_id), str(text)
+
+    # Estructura oficial de Meta
     try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE public.sessions
-                    SET last_activity_ts = NOW()
-                    WHERE user_id = %s AND platform = %s
-                    """,
-                    (user_id, platform),
+        entry = body.get("entry", [])[0]
+        changes = entry.get("changes", [])[0]
+        value = changes.get("value", {}) or {}
+
+        contacts = value.get("contacts") or []
+        if contacts:
+            user_id = contacts[0].get("wa_id") or user_id
+
+        messages = value.get("messages") or []
+        if messages:
+            msg = messages[0]
+            if "text" in msg and isinstance(msg["text"], dict):
+                text = msg["text"].get("body", text)
+            elif "button" in msg:
+                text = msg["button"].get("text") or msg.get("interactive", {}).get("button_reply", {}).get("title")
+            elif "interactive" in msg:
+                inter = msg["interactive"]
+                text = (
+                    inter.get("button_reply", {}).get("title")
+                    or inter.get("list_reply", {}).get("title")
+                    or text
                 )
-                if cur.rowcount == 0:
-                    cur.execute(
-                        """
-                        INSERT INTO public.sessions (user_id, platform, last_activity_ts, canal)
-                        VALUES (%s, %s, NOW(), %s)
-                        """,
-                        (user_id, platform, platform or "whatsapp"),
-                    )
-    finally:
-        conn.close()
+    except Exception:
+        pass
 
-def delete_session(user_id: str, platform: str) -> int:
-    """
-    Elimina la sesión. Devuelve el número de filas afectadas.
-    """
-    conn = get_conn()
+    return (str(user_id) if user_id is not None else None,
+            str(text) if text is not None else None)
+
+# -------------------------------------------------------------------
+# Startup
+# -------------------------------------------------------------------
+@app.on_event("startup")
+def on_startup() -> None:
+    ensure_session_schema()
+    _db_boot_log()
+
+# -------------------------------------------------------------------
+# Endpoints
+# -------------------------------------------------------------------
+@app.get("/")
+def root() -> Dict[str, Any]:
+    return {"ok": True, "service": "anabot", "env": ENV}
+
+@app.get("/health")
+def health() -> Dict[str, Any]:
+    return {"ok": True}
+
+@app.get("/health/db")
+def health_db() -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
     try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "DELETE FROM public.sessions WHERE user_id = %s AND platform = %s",
-                    (user_id, platform),
-                )
-                return cur.rowcount
-    finally:
-        conn.close()
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT current_database() AS db, current_user AS usr;")
+            row = cur.fetchone()
+            out["db"] = row["db"]; out["user"] = row["usr"]
+            cur.execute("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='sessions'
+                ORDER BY ordinal_position;
+            """)
+            out["sessions_columns"] = [r["column_name"] for r in cur.fetchall()]
+    except Exception as e:
+        out["error"] = str(e)
+    return out
+
+# Verificación de Meta (GET)
+@app.get("/webhook/whatsapp")
+def wa_verify(hub_mode: Optional[str] = None,
+              hub_verify_token: Optional[str] = None,
+              hub_challenge: Optional[str] = None):
+    if hub_mode == "subscribe" and hub_verify_token == WHATSAPP_VERIFY_TOKEN:
+        return PlainTextResponse(content=hub_challenge or "")
+    return PlainTextResponse(content="forbidden", status_code=403)
+
+# Recepción de mensajes (POST)
+@app.post("/webhook/whatsapp")
+async def wa_webhook(req: Request) -> Response:
+    try:
+        body: Dict[str, Any] = await req.json()
+    except Exception:
+        body = {}
+
+    user_id, text = _extract_wa_message(body)
+    if not user_id:
+        log.warning("Webhook WA sin user_id | body=%s", body)
+        return JSONResponse({"ok": True})  # 200 para que Meta no reintente
+
+    if text is None:
+        touch_session(user_id, "whatsapp")
+        return JSONResponse({"ok": True})
+
+    # upsert sesión
+    try:
+        upsert_session(
+            user_id=user_id,
+            platform="whatsapp",
+            current_state="idle",
+            has_greeted=False,
+            status="ok",
+            extra={},
+            canal="whatsapp",
+        )
+    except Exception as e:
+        log.exception("UPSERT sessions falló en webhook: %s", e)
+        return JSONResponse({"ok": True, "error": "db"}, status_code=200)
+
+    # Lógica del bot
+    try:
+        reply = get_hooks().handle_incoming_text(user_id, "whatsapp", text)
+        return JSONResponse({"ok": True, "reply": reply})
+    except Exception as e:
+        log.exception("handler WA falló: %s", e)
+        return JSONResponse({"ok": True, "error": "internal"}, status_code=200)
+
+# Failsafe global
+@app.exception_handler(Exception)
+async def _unhandled_ex_handler(_: Request, exc: Exception):
+    log.exception("Excepción no controlada: %s", exc)
+    return JSONResponse({"ok": True, "error": "unhandled"}, status_code=200)
