@@ -1,6 +1,5 @@
 import logging
 slog = logging.getLogger("sessions")
-from __future__ import annotations
 # session_store.py — rewrite from scratch (robusto e idempotente)
 from psycopg2 import Error as PGError
 from typing import Optional, Dict, Any
