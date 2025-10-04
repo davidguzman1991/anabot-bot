@@ -111,10 +111,9 @@ SET user_id = COALESCE(
     try:
         with get_conn() as conn, conn.cursor() as cur:
             cur.execute(sql, vals)
-    except psycopg2.Error as e:
-        log.error("sessions: UPSERT sessions falló | pgcode=%s | pgerror=%s", getattr(e, "pgcode", None), getattr(e, "pgerror", str(e)))
-        raise
-)
+  except psycopg2.Error as e:
+    log.error("sessions: UPSERT sessions falló | pgcode=%s | pgerror=%s", getattr(e, "pgcode", None), getattr(e, "pgerror", str(e)))
+    raise
 WHERE user_id IS NULL;
 
 -- E) NOT NULL solo si es seguro
