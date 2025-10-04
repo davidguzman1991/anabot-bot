@@ -1,3 +1,5 @@
+import logging
+flog = logging.getLogger("flow")
 # flow_engine.py  —  rewrite from scratch (robusto e idempotente)
 from __future__ import annotations
 from pathlib import Path
@@ -120,6 +122,7 @@ class FlowEngine:
     # ---------- API pública ----------
 
     def run(self, text: str, current_id: Optional[str]) -> Dict[str, Any]:
+        flog.info("[ENGINE] state=%s node=%s input=%s", current_id, current_id or self.start_node, text)
         """
         Ejecuta una transición en el flujo.
         :return: {"reply": [str,...], "next": node_id} o {} si no hay flujo cargado.
@@ -137,7 +140,9 @@ class FlowEngine:
             node = self.nodes.get(node_id)
             if not node:
                 return {}
-            return {"reply": [self._menu_text(node)], "next": node_id}
+            reply = self._menu_text(node)
+            flog.info("[ENGINE] next=%s reply=%s", node_id, reply)
+            return {"reply": [reply], "next": node_id}
 
         node = self.nodes.get(dest)
         if not node:
@@ -145,10 +150,14 @@ class FlowEngine:
             node = self.nodes.get(node_id)
             if not node:
                 return {}
-            return {"reply": [self._menu_text(node)], "next": node_id}
+            reply = self._menu_text(node)
+            flog.info("[ENGINE] next=%s reply=%s", node_id, reply)
+            return {"reply": [reply], "next": node_id}
 
         # transición válida: mostrar el menú del destino
-        return {"reply": [self._menu_text(node)], "next": node["id"]}
+        reply = self._menu_text(node)
+        flog.info("[ENGINE] next=%s reply=%s", node["id"], reply)
+        return {"reply": [reply], "next": node["id"]}
 
     # ---------- helpers opcionales ----------
 

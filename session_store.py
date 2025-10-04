@@ -103,6 +103,7 @@ def get_session(user_id: str, platform: str) -> Optional[Dict[str, Any]]:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(sql, (user_id, platform))
         row = cur.fetchone()
+        slog.info("get_session user=%s platform=%s -> %s", user_id, platform, dict(row) if row else None)
         return dict(row) if row else None
 
 
@@ -123,6 +124,7 @@ def upsert_session(user_id: str, platform: str, current_state: str = "idle", cha
     current_state = EXCLUDED.current_state
   ;
   """
+  slog.info("UPSERT IN user=%s platform=%s state=%s", user_id, platform, current_state)
   try:
     with get_conn() as conn, conn.cursor() as cur:
       cur.execute(sql_insert, (user_id, platform, channel, current_state))
@@ -136,7 +138,7 @@ def upsert_session(user_id: str, platform: str, current_state: str = "idle", cha
       (user_id, platform, channel, current_state),
     )
     raise
-
+  slog.info("UPSERT OK user=%s platform=%s state=%s", user_id, platform, current_state)
   return get_session(user_id, platform)  # type: ignore[return-value]
 
 

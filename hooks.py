@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger("flow")
+log.setLevel(logging.INFO)
 # hooks.py — versión mínima y robusta
 from typing import Any, Dict, Optional
 from session_store import get_session, upsert_session, touch_session
@@ -16,20 +19,52 @@ class Hooks:
         self.engine = engine
 
     def handle_incoming_text(self, user_id: str, platform: str, text: str) -> str:
+        # Log de entrada
+        log.info("[FLOW] IN user=%s platform=%s text=%s", user_id, platform, text)
+
         # 1) cargar estado
-        sess = get_session(user_id, platform)
-        current_node = (sess or {}).get("current_state")
+        session = get_session(user_id, platform) or {}
+
+        # Estado inicial: si current_state está vacío o inválido, normaliza y persiste
+        curr = (session.get("current_state") or "").strip().lower()
+        if curr in ("", "pendiente", "idle", "unknown", None):
+            log.info("[FLOW] Estado inicial inválido (%s) → set menu_principal", curr)
+            session["current_state"] = "menu_principal"
+            upsert_session(
+                user_id=user_id,
+                platform=platform,
+                current_state=session["current_state"],
+                has_greeted=session.get("has_greeted", False),
+                status=session.get("status", "ok"),
+                extra=session.get("extra", {}),
+            )
+
+        # Log antes de motor
+        log.info("[FLOW] BEFORE engine user=%s state=%s", user_id, session.get("current_state"))
 
         # 2) intentar transicionar con lo que llegó
-        out = self.engine.run(text=text or "", current_id=current_node)
+        out = self.engine.run(text=text or "", current_id=session.get("current_state"))
 
         # 3) si no hubo match, fuerza menú del nodo actual/start
         if not out:
-            out = self.engine.run(text="", current_id=current_node) or self.engine.run(text="", current_id=None)
+            out = self.engine.run(text="", current_id=session.get("current_state")) or self.engine.run(text="", current_id=None)
+
+        # Log después de motor
+        next_node = out["next"] if out and "next" in out else None
+        log.info("[FLOW] AFTER engine user=%s next=%s", user_id, next_node)
 
         # 4) persistir y responder (o fallback)
         if out:
-            upsert_session(user_id, platform, current_state=out["next"], channel=platform)
+            session["current_state"] = out["next"]
+            upsert_session(
+                user_id=user_id,
+                platform=platform,
+                current_state=session["current_state"],
+                has_greeted=session.get("has_greeted", False),
+                status=session.get("status", "ok"),
+                extra=session.get("extra", {}),
+            )
+            log.info("[FLOW] OUT user=%s state=%s", user_id, session["current_state"])
             touch_session(user_id, platform)
             return "\n".join(out["reply"])
 
