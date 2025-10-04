@@ -3,78 +3,43 @@
   "nodes": [
     {
       "id": "menu_principal",
-      "label": "👋 Hola, elige una opción:",
-      "payload": { "menu": ["Info de servicios", "Agendar cita", "Hablar con asesor"] }
+      "label": "🌞/🌇/🌙 ¡Hola! Soy Ana 🤖, asistente del Dr. David Guzmán.\n\nResponde con el número de la opción que necesitas:\n1️⃣ Más información de **servicios médicos** 🩺\n2️⃣ **Agendar cita médica** 📅\n3️⃣ **Reagendar** o **cancelar cita** 🔁❌\n4️⃣ **Consultar cita médica** 🔎\n5️⃣ **Hablar con el Dr. Guzmán** 👨‍⚕️\n\n(Puedes escribir **9** para volver al inicio en cualquier momento.)",
+      "payload": { "menu": ["Servicios", "Agendar", "Reagendar/Cancelar", "Consultar", "Hablar con el Dr."] }
     },
     {
-      "id": "INFO_SERVICIOS",
-      "label": "💡 *Servicios*\n\nMis consultas tienen un valor de *$45*. Incluyen:\n• ECG\n• Plan nutricional\n• Educación en diabetes\n• Examen de neuropatía\n• Valoración de riesgo CV\n\n1) Dirección Guayaquil\n2) Dirección Milagro\n\n0) Atrás · 9) Inicio",
-      "payload": { "menu": [] }
+      "id": "SERVICIOS",
+      "label": "🩺 **Servicios y valor**\n\n💵 Valor: **$45**\n⏱️ Duración: **60 minutos aprox.**\n\nDurante tu cita realizamos:\n🟢 **Electrocardiograma (ECG)**\n🟢 **Asesoría nutricional + plan personalizado**\n🟢 **Educación en diabetes** (paciente y familia)\n🟢 **Examen de neuropatía y pie diabético**\n🟢 **Valoración de riesgo cardiovascular y renal**\n\n📍 Atención **previa cita** en **Guayaquil** y **Milagro**.\n\n1️⃣ Dirección **Guayaquil**\n2️⃣ Dirección **Milagro**\n\n0️⃣ Atrás · 9️⃣ Inicio",
+      "payload": { "menu": ["Dirección Guayaquil", "Dirección Milagro"] }
     },
     {
       "id": "DIRECCION_GYE",
-      "label": "📍 Guayaquil: Av. Ejemplo 123, Piso 2. Atención previa cita.\n\n0) Atrás · 9) Inicio",
-      "payload": { "menu": [] }
+      "label": "🏥 **Hospital de Especialidades (Torre Sur)**\nConsultorio 204 – Antigua Clínica Kennedy Alborada\n\n📍 Maps: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7\n\n¿Deseas **agendar una cita** aquí?\n1️⃣ Sí, agendar 📅\n\n0️⃣ Atrás · 9️⃣ Inicio",
+      "payload": { "menu": ["Agendar en Guayaquil"] }
     },
     {
       "id": "DIRECCION_MIL",
-      "label": "📍 Milagro: Calle Principal 456, Consultorio A. Atención previa cita.\n\n0) Atrás · 9) Inicio",
-      "payload": { "menu": [] }
-    },
-    {
-      "id": "ASESOR",
-      "label": "👩‍⚕️ Un asesor se comunicará contigo a la brevedad.\n\n0) Atrás · 9) Inicio",
-      "payload": { "menu": [] }
-    },
-
-    {
-      "id": "AGENDAR_PEDIR_FNAC",
-      "label": "🎂 *Fecha de nacimiento*\nEscribe en formato *DD-MM-AAAA* (ej: *20-06-1991*).\n\n0) Atrás · 9) Inicio",
-      "payload": { "menu": [] }
-    },
-    {
-      "id": "AGENDAR_ESPERA_FNAC",
-      "label": "ESPERANDO_FNAC",
-      "payload": { "menu": [] }
-    },
-    {
-      "id": "AGENDAR_PEDIR_TEL",
-      "label": "📱 *Número de contacto*\nIndica tu celular/WhatsApp (ej: *09xxxxxxxx*).\n\n0) Atrás · 9) Inicio",
-      "payload": { "menu": [] }
-    },
-    {
-      "id": "AGENDAR_ESPERA_TEL",
-      "label": "ESPERANDO_TEL",
-      "payload": { "menu": [] }
+      "label": "🏥 **Clínica Santa Elena**\nAv. Cristóbal Colón y Calle P. J. Montero\n\n📍 Maps: https://maps.app.goo.gl/7hh97D7JDcznqRSK9\n\n¿Deseas **agendar una cita** aquí?\n1️⃣ Sí, agendar 📅\n\n0️⃣ Atrás · 9️⃣ Inicio",
+      "payload": { "menu": ["Agendar en Milagro"] }
     }
   ],
   "edges": [
-    { "source": "menu_principal", "target": "INFO_SERVICIOS",     "label": "1" },
-    { "source": "menu_principal", "target": "AGENDAR_PEDIR_FNAC", "label": "2" },
-    { "source": "menu_principal", "target": "ASESOR",             "label": "3" },
+    { "source": "menu_principal", "target": "SERVICIOS", "label": "1" },
 
-    { "source": "INFO_SERVICIOS", "target": "DIRECCION_GYE", "label": "1" },
-    { "source": "INFO_SERVICIOS", "target": "DIRECCION_MIL", "label": "2" },
-    { "source": "INFO_SERVICIOS", "target": "menu_principal", "label": "0" },
-    { "source": "INFO_SERVICIOS", "target": "menu_principal", "label": "9" },
+    { "source": "SERVICIOS", "target": "DIRECCION_GYE", "label": "1" },
+    { "source": "SERVICIOS", "target": "DIRECCION_MIL", "label": "2" },
+    { "source": "SERVICIOS", "target": "menu_principal", "label": "0" },
+    { "source": "SERVICIOS", "target": "menu_principal", "label": "9" },
 
     { "source": "DIRECCION_GYE", "target": "menu_principal", "label": "0" },
     { "source": "DIRECCION_GYE", "target": "menu_principal", "label": "9" },
     { "source": "DIRECCION_MIL", "target": "menu_principal", "label": "0" },
     { "source": "DIRECCION_MIL", "target": "menu_principal", "label": "9" },
 
-    { "source": "ASESOR", "target": "menu_principal", "label": "0" },
-    { "source": "ASESOR", "target": "menu_principal", "label": "9" },
-
-    { "source": "AGENDAR_PEDIR_FNAC", "target": "menu_principal",   "label": "0" },
-    { "source": "AGENDAR_PEDIR_FNAC", "target": "menu_principal",   "label": "9" },
-    { "source": "AGENDAR_ESPERA_FNAC", "target": "AGENDAR_PEDIR_TEL", "label": "" },
-
-    { "source": "AGENDAR_PEDIR_TEL", "target": "menu_principal", "label": "0" },
-    { "source": "AGENDAR_PEDIR_TEL", "target": "menu_principal", "label": "9" },
-    { "source": "AGENDAR_ESPERA_TEL", "target": "menu_principal", "label": "" }
+    { "source": "DIRECCION_GYE", "target": "menu_principal", "label": "1" },
+    { "source": "DIRECCION_MIL", "target": "menu_principal", "label": "1" }
   ]
 }
+
 
 
 
