@@ -109,64 +109,53 @@ def get_session(user_id: str, platform: str) -> Optional[Dict[str, Any]]:
 
 
 def upsert_session(
-    user_id: str,
-    platform: str,
-    current_state: str = "idle",
-    *,
-    has_greeted: bool | None = None,
-    status: str | None = None,
-    extra: dict | None = None,
+  user_id: str,
+  platform: str,
+  current_state: str = "idle",
+  *,
+  has_greeted: bool | None = None,
+  status: str | None = None,
+  extra: dict | None = None,
 ):
-    """
-    UPSERT para public.sessions que acepta campos opcionales.
-    Solo escribe columnas que la tabla ya tiene.
-    """
-    if not user_id or not platform:
-        return
+  if not user_id or not platform:
+    return
 
-    # columnas que seguro existen hoy
-    cols = ["user_id", "platform", "current_state"]
-    vals = [user_id, platform, current_state or "idle"]
+  canal = platform or "whatsapp"  # ← valor por defecto seguro
+  has_greeted = bool(has_greeted) if has_greeted is not None else False
+  status = status or "ok"
+  extra_json = json.dumps(extra or {})
 
-    # opcionales (todas existen en tu tabla actual)
-    if has_greeted is not None:
-        cols.append("has_greeted"); vals.append(has_greeted)
-    if status is not None:
-        cols.append("status"); vals.append(status)
-    if extra is not None:
-        # convertir a jsonb en SQL, pasamos texto aquí
-        cols.append("extra"); vals.append(json.dumps(extra))
+  # columnas en español que existen en tu tabla
+  sql = """
+  INSERT INTO public.sessions
+    (canal, id_usuario, plataforma, estado_actual, ha_saludado, estado, extra, última_actividad_ts)
+  VALUES
+    (%s,     %s,         %s,         %s,           %s,           %s,     %s,    NOW())
+  ON CONFLICT (id_usuario, plataforma)
+  DO UPDATE SET
+    canal = EXCLUDED.canal,
+    estado_actual = EXCLUDED.estado_actual,
+    ha_saludado   = EXCLUDED.ha_saludado,
+    estado        = EXCLUDED.estado,
+    extra         = EXCLUDED.extra,
+    última_actividad_ts = NOW();
+  """
 
-    # INSERT con last_activity_ts y ON CONFLICT en (user_id, platform)
-    insert_cols = ", ".join(cols + ["last_activity_ts"])
-    placeholders = ", ".join(["%s"] * len(cols) + ["NOW()"])
-    conflict_cols = "user_id, platform"
+  params = [canal, user_id, platform, current_state or "menu_principal",
+        has_greeted, status, extra_json]
 
-    # en UPDATE, refrescamos las mismas columnas mutables + el timestamp
-    set_list = [f"{c}=EXCLUDED.{c}" for c in cols if c not in ("user_id", "platform")]
-    set_list.append("last_activity_ts=NOW()")
-    set_clause = ", ".join(set_list)
-
-    sql = f"""
-    INSERT INTO public.sessions ({insert_cols})
-    VALUES ({placeholders})
-    ON CONFLICT ({conflict_cols})
-    DO UPDATE SET {set_clause};
-    """
-
-    from psycopg2 import Error as PGError
-    slog = logging.getLogger("sessions")
-    try:
-        with get_conn() as conn, conn.cursor() as cur:
-            cur.execute(sql, vals)
-            conn.commit()
-            slog.info("UPSERT OK user=%s platform=%s state=%s", user_id, platform, current_state)
-    except PGError as e:
-        slog.exception(
-            "UPSERT sessions falló | pgcode=%s | pgerror=%s | sql=%s | params=%s",
-            getattr(e, "pgcode", None), getattr(e, "pgerror", None), sql, vals
-        )
-        raise
+  from psycopg2 import Error as PGError
+  slog = logging.getLogger("sessions")
+  try:
+    with get_conn() as conn, conn.cursor() as cur:
+      cur.execute(sql, params)
+      conn.commit()
+      slog.info("UPSERT OK user=%s platform=%s state=%s canal=%s",
+            user_id, platform, current_state, canal)
+  except PGError as e:
+    slog.exception("UPSERT sessions falló | pgcode=%s | pgerror=%s | sql=%s | params=%s",
+             getattr(e, "pgcode", None), getattr(e, "pgerror", None), sql, params)
+    raise
 
 
 def update_session(user_id: str, platform: str, **fields: Any) -> None:
