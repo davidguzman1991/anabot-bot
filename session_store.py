@@ -3,9 +3,10 @@ from db_utils import get_conn
 
 SESSIONS_TABLE = "public.sessions"
 
-def ensure_session_schema() -> None:
+def ensure_session_schema():
     ddl = """
     CREATE TABLE IF NOT EXISTS public.sessions (id SERIAL PRIMARY KEY);
+
     ALTER TABLE public.sessions
       ADD COLUMN IF NOT EXISTS user_id TEXT,
       ADD COLUMN IF NOT EXISTS platform TEXT,
@@ -14,16 +15,38 @@ def ensure_session_schema() -> None:
       ADD COLUMN IF NOT EXISTS current_state TEXT NOT NULL DEFAULT 'idle',
       ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pendiente',
       ADD COLUMN IF NOT EXISTS extra JSONB NOT NULL DEFAULT '{}'::jsonb;
-    UPDATE public.sessions SET platform='whatsapp' WHERE platform IS NULL;
-    ALTER TABLE public.sessions
-      ALTER COLUMN user_id SET NOT NULL,
-      ALTER COLUMN platform SET NOT NULL;
+
+    -- Backfill mínimo para evitar NOT NULL violations
+    UPDATE public.sessions SET platform = 'whatsapp' WHERE platform IS NULL;
+    UPDATE public.sessions
+      SET user_id = COALESCE(user_id, (extra ->> 'user_id'), ('unknown_' || id::text))
+      WHERE user_id IS NULL;
+
+    -- Impone NOT NULL solo si ya no hay NULLs
+    DO $$
+    DECLARE
+      c1 int; c2 int;
+    BEGIN
+      SELECT COUNT(*) INTO c1 FROM public.sessions WHERE user_id IS NULL;
+      IF c1 = 0 THEN
+        EXECUTE 'ALTER TABLE public.sessions ALTER COLUMN user_id SET NOT NULL';
+      END IF;
+
+      SELECT COUNT(*) INTO c2 FROM public.sessions WHERE platform IS NULL;
+      IF c2 = 0 THEN
+        EXECUTE 'ALTER TABLE public.sessions ALTER COLUMN platform SET NOT NULL';
+      END IF;
+    END$$;
+
+    -- Índice único si no existe
     DO $$
     BEGIN
       IF NOT EXISTS (
         SELECT 1 FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind='i' AND c.relname='idx_sessions_user_platform' AND n.nspname='public'
+        WHERE c.relkind = 'i'
+          AND c.relname = 'idx_sessions_user_platform'
+          AND n.nspname = 'public'
       ) THEN
         CREATE UNIQUE INDEX idx_sessions_user_platform ON public.sessions(user_id, platform);
       END IF;
