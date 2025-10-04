@@ -1,97 +1,216 @@
+# session_store.py — rewrite from scratch (robusto e idempotente)
+from __future__ import annotations
 from typing import Optional, Dict, Any
+from datetime import datetime, timezone
+import json
+
 from db_utils import get_conn
 
-SESSIONS_TABLE = "public.sessions"
+# =========================
+#  Esquema y migraciones
+# =========================
+DDL = """
+-- A) Crear tabla mínima si no existe
+CREATE TABLE IF NOT EXISTS public.sessions (id BIGSERIAL);
 
-def ensure_session_schema():
-    ddl = """
-    CREATE TABLE IF NOT EXISTS public.sessions (id SERIAL PRIMARY KEY);
+-- B) Asegurar columna id y PK (si aún no existieran)
+ALTER TABLE public.sessions
+  ADD COLUMN IF NOT EXISTS id BIGSERIAL;
 
-    ALTER TABLE public.sessions
-      ADD COLUMN IF NOT EXISTS user_id TEXT,
-      ADD COLUMN IF NOT EXISTS platform TEXT,
-      ADD COLUMN IF NOT EXISTS last_activity_ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      ADD COLUMN IF NOT EXISTS has_greeted BOOLEAN NOT NULL DEFAULT FALSE,
-      ADD COLUMN IF NOT EXISTS current_state TEXT NOT NULL DEFAULT 'idle',
-      ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pendiente',
-      ADD COLUMN IF NOT EXISTS extra JSONB NOT NULL DEFAULT '{}'::jsonb;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.table_constraints
+    WHERE table_schema='public'
+      AND table_name='sessions'
+      AND constraint_type='PRIMARY KEY'
+  ) THEN
+    ALTER TABLE public.sessions ADD PRIMARY KEY (id);
+  END IF;
+END$$;
 
-    -- Backfill mínimo para evitar NOT NULL violations
-    UPDATE public.sessions SET platform = 'whatsapp' WHERE platform IS NULL;
-    UPDATE public.sessions
-      SET user_id = COALESCE(user_id, (extra ->> 'user_id'), ('unknown_' || id::text))
-      WHERE user_id IS NULL;
+-- C) Asegurar columnas requeridas
+ALTER TABLE public.sessions
+  ADD COLUMN IF NOT EXISTS user_id TEXT,
+  ADD COLUMN IF NOT EXISTS platform TEXT,
+  ADD COLUMN IF NOT EXISTS last_activity_ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS has_greeted BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS current_state TEXT NOT NULL DEFAULT 'idle',
+  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pendiente',
+  ADD COLUMN IF NOT EXISTS extra JSONB NOT NULL DEFAULT '{}'::jsonb;
 
-    -- Impone NOT NULL solo si ya no hay NULLs
-    DO $$
-    DECLARE
-      c1 int; c2 int;
-    BEGIN
-      SELECT COUNT(*) INTO c1 FROM public.sessions WHERE user_id IS NULL;
-      IF c1 = 0 THEN
-        EXECUTE 'ALTER TABLE public.sessions ALTER COLUMN user_id SET NOT NULL';
-      END IF;
+-- D) Backfill mínimo (nunca debe romper)
+UPDATE public.sessions SET platform = 'whatsapp' WHERE platform IS NULL;
+UPDATE public.sessions
+SET user_id = COALESCE(
+  user_id,
+  (extra ->> 'user_id'),
+  'unknown_' || substr(md5(random()::text || clock_timestamp()::text), 1, 12)
+)
+WHERE user_id IS NULL;
 
-      SELECT COUNT(*) INTO c2 FROM public.sessions WHERE platform IS NULL;
-      IF c2 = 0 THEN
-        EXECUTE 'ALTER TABLE public.sessions ALTER COLUMN platform SET NOT NULL';
-      END IF;
-    END$$;
+-- E) NOT NULL solo si es seguro
+DO $$
+DECLARE c1 int; c2 int;
+BEGIN
+  SELECT COUNT(*) INTO c1 FROM public.sessions WHERE user_id IS NULL;
+  IF c1 = 0 THEN
+    EXECUTE 'ALTER TABLE public.sessions ALTER COLUMN user_id SET NOT NULL';
+  END IF;
 
-    -- Índice único si no existe
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_class c
-        JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'i'
-          AND c.relname = 'idx_sessions_user_platform'
-          AND n.nspname = 'public'
-      ) THEN
-        CREATE UNIQUE INDEX idx_sessions_user_platform ON public.sessions(user_id, platform);
-      END IF;
-    END$$;
-    """
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(ddl)
+  SELECT COUNT(*) INTO c2 FROM public.sessions WHERE platform IS NULL;
+  IF c2 = 0 THEN
+    EXECUTE 'ALTER TABLE public.sessions ALTER COLUMN platform SET NOT NULL';
+  END IF;
+END$$;
+
+-- F) Índice único (clave natural)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relkind='i' AND c.relname='idx_sessions_user_platform' AND n.nspname='public'
+  ) THEN
+    CREATE UNIQUE INDEX idx_sessions_user_platform ON public.sessions(user_id, platform);
+  END IF;
+END$$;
+"""
+
+def ensure_session_schema() -> None:
+    """Aplica el DDL idempotente; seguro en startup."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(DDL)
         conn.commit()
 
-def get_session(user_id: str, platform: str = "whatsapp") -> Optional[Dict[str, Any]]:
-    q = f"SELECT * FROM {SESSIONS_TABLE} WHERE user_id=%s AND platform=%s LIMIT 1"
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(q, (user_id, platform))
-        return cur.fetchone()
+# =========================
+#  Helpers CRUD de sesión
+# =========================
 
-def update_session(user_id: str, platform: str = "whatsapp", **kwargs) -> Dict[str, Any]:
-    # Upsert por UNIQUE(user_id, platform)
-    fields = ["user_id", "platform"]
-    vals = [user_id, platform]
-    sets = []
-    for k, v in kwargs.items():
-        fields.append(k)
-        vals.append(v)
-        sets.append(f"{k}=EXCLUDED.{k}")
-    sql = f"""
-    INSERT INTO {SESSIONS_TABLE} ({",".join(fields)})
-    VALUES ({",".join(["%s"]*len(fields))})
-    ON CONFLICT (user_id, platform) DO UPDATE SET
-      last_activity_ts = NOW(){"," if sets else ""} {", ".join(sets)}
-    RETURNING *;
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+def get_session(user_id: str, platform: str) -> Optional[Dict[str, Any]]:
+    """Obtiene una sesión o None."""
+    sql = """
+    SELECT id, user_id, platform, last_activity_ts, has_greeted, current_state, status, extra
+    FROM public.sessions
+    WHERE user_id = %s AND platform = %s
     """
     with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(sql, vals)
+        cur.execute(sql, (user_id, platform))
         row = cur.fetchone()
-        conn.commit()
-        return row
+        return dict(row) if row else None
 
-def reset_session(user_id: str, platform: str = "whatsapp") -> Dict[str, Any]:
-    # Resetea a valores por defecto
-    kwargs = {
-        "has_greeted": False,
-        "current_state": "idle",
-        "status": "pendiente",
-        "extra": "{}"
-    }
-    return update_session(user_id, platform, **kwargs)
+def upsert_session(user_id: str, platform: str, **fields: Any) -> Dict[str, Any]:
+    """
+    Inserta o actualiza (merge) una sesión.
+    Si 'extra' viene como dict, se mergea sobre el JSON existente.
+    """
+    # Separar 'extra' del resto
+    extra_new = fields.pop("extra", None)
+    # Campos escalares permitidos
+    scalars = {k: v for k, v in fields.items()
+               if k in {"has_greeted", "current_state", "status", "last_activity_ts"}}
+
+    # 1) Asegurar existencia con INSERT ... ON CONFLICT (no pisa valores aún)
+    sql_insert = """
+    INSERT INTO public.sessions (user_id, platform, last_activity_ts)
+    VALUES (%s, %s, %s)
+    ON CONFLICT (user_id, platform) DO NOTHING
+    """
+    # 2) Si hay escalares, actualizarlos
+    set_clauses = []
+    params = []
+    for k, v in scalars.items():
+        set_clauses.append(f"{k} = %s")
+        params.append(v)
+    if set_clauses:
+        sql_update_scalars = f"""
+        UPDATE public.sessions
+        SET {", ".join(set_clauses)}, last_activity_ts = %s
+        WHERE user_id = %s AND platform = %s
+        """
+        params.extend([_now(), user_id, platform])
+    else:
+        sql_update_scalars = None
+
+    # 3) Merge JSONB si corresponde
+    if isinstance(extra_new, dict):
+        sql_merge_extra = """
+        UPDATE public.sessions
+        SET extra = COALESCE(extra, '{}'::jsonb) || %s::jsonb,
+            last_activity_ts = %s
+        WHERE user_id = %s AND platform = %s
+        """
+        params_extra = [json.dumps(extra_new), _now(), user_id, platform]
+    else:
+        sql_merge_extra = None
+        params_extra = None
+
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(sql_insert, (user_id, platform, _now()))
+        if sql_update_scalars:
+            cur.execute(sql_update_scalars, tuple(params))
+        if sql_merge_extra:
+            cur.execute(sql_merge_extra, tuple(params_extra))
+        conn.commit()
+
+    return get_session(user_id, platform)  # type: ignore[return-value]
+
+def update_session(user_id: str, platform: str, **fields: Any) -> Dict[str, Any]:
+    """Alias de upsert_session (actualiza siempre que exista; si no, crea)."""
+    return upsert_session(user_id, platform, **fields)
+
+def reset_session(user_id: str, platform: str) -> Dict[str, Any]:
+    """Resetea campos lógicos a valores por defecto conservando extra si quieres."""
+    sql = """
+    UPDATE public.sessions
+    SET has_greeted = FALSE,
+        current_state = 'idle',
+        status = 'pendiente',
+        extra = '{}'::jsonb,
+        last_activity_ts = %s
+    WHERE user_id = %s AND platform = %s
+    """
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(sql, (_now(), user_id, platform))
+        if cur.rowcount == 0:
+            # Si no existía, créala reseteada
+            return upsert_session(
+                user_id, platform,
+                has_greeted=False,
+                current_state='idle',
+                status='pendiente',
+                extra={}
+            )
+        conn.commit()
+    return get_session(user_id, platform)  # type: ignore[return-value]
+
+def touch_session(user_id: str, platform: str) -> None:
+    """Solo actualiza el timestamp de actividad."""
+    sql = """
+    UPDATE public.sessions
+    SET last_activity_ts = %s
+    WHERE user_id = %s AND platform = %s
+    """
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(sql, (_now(), user_id, platform))
+        if cur.rowcount == 0:
+            # Crea si no existe
+            cur.execute(
+                "INSERT INTO public.sessions (user_id, platform, last_activity_ts) VALUES (%s, %s, %s)",
+                (user_id, platform, _now())
+            )
+        conn.commit()
+
+def delete_session(user_id: str, platform: str) -> int:
+    """Elimina una sesión. Devuelve # filas afectadas (0/1)."""
+    sql = "DELETE FROM public.sessions WHERE user_id = %s AND platform = %s"
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(sql, (user_id, platform))
+        count = cur.rowcount
+        conn.commit()
+        return count
 
