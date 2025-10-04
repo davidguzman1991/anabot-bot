@@ -24,6 +24,7 @@ import db_utils
 from utils.idempotency import mark_processed, is_processed
 from config import get_settings
 from flow_engine import FlowEngine
+from hooks import Hooks
 from session_store import ensure_session_schema, get_session, update_session, reset_session
 from db_utils import db_health, get_conn, wait_for_db
 
@@ -53,6 +54,7 @@ WA_MSG_URL = "https://graph.facebook.com/v20.0/{phone_id}/messages"
 FLOW_PATH = Path(__file__).with_name("flow.json")
 
 FLOW_ENGINE: FlowEngine | None = None
+HOOKS: Hooks | None = None
 FOOTER_TEXT = "\n\n0 Atrás · 9 Inicio · 00 Humano"
 
 # Inicialización de la app
@@ -66,6 +68,7 @@ app.add_middleware(
     allow_headers=["*"],
     allow_methods=["*"],
 )
+
 
 
 
@@ -84,6 +87,10 @@ def on_startup():
         startup_log.warning("Could not log DB/schema: %s", e)
     ensure_session_schema()
     startup_log.info("sessions schema ensured")
+    global FLOW_ENGINE, HOOKS
+    FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH))
+    HOOKS = Hooks(FLOW_ENGINE)
+
 
 
 def get_flow_engine() -> FlowEngine:
@@ -91,6 +98,13 @@ def get_flow_engine() -> FlowEngine:
     if FLOW_ENGINE is None:
         FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH))
     return FLOW_ENGINE
+
+def get_hooks() -> Hooks:
+    global HOOKS
+    if HOOKS is None:
+        FLOW_ENGINE = get_flow_engine()
+        HOOKS = Hooks(FLOW_ENGINE)
+    return HOOKS
 
 # Endpoint de salud de base de datos
 @app.get("/health/db")
@@ -398,6 +412,7 @@ async def wa_verify(
 
 
 @app.post("/webhook/whatsapp")
+
 async def wa_webhook(request: Request):
     try:
         body = await request.json()
@@ -420,9 +435,10 @@ async def wa_webhook(request: Request):
                     user_text = f"Reaction {message['reaction'].get('emoji', '')}".strip()
 
                 try:
-                    response_text = await handle_text(user_text, platform="whatsapp", user_id=from_number)
+                    hooks = get_hooks()
+                    response_text = hooks.handle_incoming_text(from_number, "whatsapp", user_text)
                 except Exception:
-                    logger.exception("WhatsApp handle_text failed")
+                    logger.exception("WhatsApp handle_incoming_text failed")
                     response_text = _append_footer("Estamos procesando tu mensaje, por favor intenta nuevamente en unos minutos.")
 
                 if response_text:

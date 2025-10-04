@@ -4,7 +4,10 @@ import datetime
 import re
 from typing import Any, Dict, List, Optional
 
-from hooks import Hooks
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from hooks import Hooks
 
 NAV_HINT_TEXT = "Escribe 1 para volver atrás o 9 para ir al inicio."
 
@@ -49,7 +52,7 @@ class FlowEngine:
         base_shortcuts = {"to_human": "0", "back": "1", "home": "9"}
         custom_shortcuts = self.globals.get("shortcuts", {})
         self.shortcuts = {**base_shortcuts, **custom_shortcuts}
-        self.hooks = Hooks(self.globals)
+    self.hooks = None  # Remove runtime dependency on Hooks; pass hooks externally if needed
 
         import json
         from pathlib import Path

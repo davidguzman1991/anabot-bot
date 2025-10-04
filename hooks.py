@@ -1,33 +1,27 @@
-from flow_engine import FlowEngine
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from flow_engine import FlowEngine
 from session_store import get_session, upsert_session, touch_session
 
-# Motor de flujo robusto y tolerante a formatos
-engine = FlowEngine("flow.json")
 FALLBACK = "Estoy procesando tu mensaje. Por favor, intenta nuevamente en unos minutos."
 
-def handle_incoming_text(user_id: str, platform: str, text: str) -> str:
-    # 1) recuperar estado actual
-    sess = get_session(user_id, platform)
-    current_node = (sess or {}).get("current_state")
+class Hooks:
+    def __init__(self, engine: "FlowEngine"):
+        self.engine = engine
 
-    # 2) correr el flow
-    out = engine.run(text=text, current_id=current_node)
-
-    if out:
-        # 3) persistir next y devolver reply del flow
-        upsert_session(user_id, platform, current_state=out["next"])
-        touch_session(user_id, platform)
-        return "\n".join(out["reply"])
-
-    # 4) si no hay flow cargado, mostrar un MENÚ base (no el fallback genérico)
-    #    intenta mostrar el nodo start si existe
-    out2 = engine.run(text="", current_id=None)
-    if out2:
-        upsert_session(user_id, platform, current_state=out2["next"])
-        return "\n".join(out2["reply"])
-
-    # 5) último recurso: fallback
-    return FALLBACK
+    def handle_incoming_text(self, user_id: str, platform: str, text: str) -> str:
+        sess = get_session(user_id, platform)
+        current_node = (sess or {}).get("current_state")
+        out = self.engine.run(text=text, current_id=current_node)
+        if out:
+            upsert_session(user_id, platform, current_state=out["next"])
+            touch_session(user_id, platform)
+            return "\n".join(out["reply"])
+        out2 = self.engine.run(text="", current_id=None)
+        if out2:
+            upsert_session(user_id, platform, current_state=out2["next"])
+            return "\n".join(out2["reply"])
+        return FALLBACK
 
 from datetime import datetime, timezone
 from typing import Any, Dict
