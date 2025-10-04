@@ -31,8 +31,7 @@ class Hooks:
             log.info("[FLOW] Estado inicial inválido (%s) → set menu_principal", curr)
             session["current_state"] = "menu_principal"
             upsert_session(
-                user_id=user_id,
-                platform=platform,
+                user_id, platform,
                 current_state=session["current_state"],
                 has_greeted=session.get("has_greeted", False),
                 status=session.get("status", "ok"),
@@ -57,8 +56,7 @@ class Hooks:
         if out:
             session["current_state"] = out["next"]
             upsert_session(
-                user_id=user_id,
-                platform=platform,
+                user_id, platform,
                 current_state=session["current_state"],
                 has_greeted=session.get("has_greeted", False),
                 status=session.get("status", "ok"),

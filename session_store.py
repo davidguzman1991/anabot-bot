@@ -5,50 +5,115 @@ from psycopg2 import Error as PGError
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 import json
+from __future__ import annotations
+import os
+import logging
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-from db_utils import get_conn
+log = logging.getLogger("anabot")
 
-# =========================
-#  Esquema y migraciones
-# =========================
-DDL = """
--- A) Crear tabla mínima si no existe
-CREATE TABLE IF NOT EXISTS public.sessions (id BIGSERIAL);
+DATABASE_URL = os.getenv("DATABASE_URL")
 
--- B) Asegurar columna id y PK (si aún no existieran)
-ALTER TABLE public.sessions
-  ADD COLUMN IF NOT EXISTS id BIGSERIAL;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM information_schema.table_constraints
-    WHERE table_schema='public'
-      AND table_name='sessions'
-      AND constraint_type='PRIMARY KEY'
-  ) THEN
-    ALTER TABLE public.sessions ADD PRIMARY KEY (id);
-  END IF;
-END$$;
-
--- C) Asegurar columnas requeridas
-ALTER TABLE public.sessions
-  ADD COLUMN IF NOT EXISTS user_id TEXT,
-  ADD COLUMN IF NOT EXISTS platform TEXT,
-  ADD COLUMN IF NOT EXISTS last_activity_ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  ADD COLUMN IF NOT EXISTS has_greeted BOOLEAN NOT NULL DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS current_state TEXT NOT NULL DEFAULT 'idle',
-  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pendiente',
-  ADD COLUMN IF NOT EXISTS extra JSONB NOT NULL DEFAULT '{}'::jsonb;
-
--- D) Backfill mínimo (nunca debe romper)
-UPDATE public.sessions SET platform = 'whatsapp' WHERE platform IS NULL;
-UPDATE public.sessions
 SET user_id = COALESCE(
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
   user_id,
+    cur.execute("""
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = %s AND column_name = %s
+        """, (table, column))
+    return cur.fetchone() is not None
+
   (extra ->> 'user_id'),
+    """
+    Crea la tabla public.sessions si no existe y asegura columnas/índices esperados.
+    Idempotente.
+    """
+    with get_conn() as conn, conn.cursor() as cur:
+        # 1) Tabla base
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS public.sessions (
+          id               SERIAL PRIMARY KEY,
+          user_id          TEXT NOT NULL,
+          platform         TEXT NOT NULL,
+          current_state    TEXT NOT NULL DEFAULT 'idle',
+          has_greeted      BOOLEAN NOT NULL DEFAULT FALSE,
+          status           TEXT NOT NULL DEFAULT 'ok',
+          extra            JSONB NOT NULL DEFAULT '{}'::jsonb,
+          last_activity_ts TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        """)
+
+        # 2) Columna 'canal' (clave para tu código)
+        if not _column_exists(cur, "sessions", "canal"):
+            log.info("schema: creando columna 'canal'…")
+            cur.execute("ALTER TABLE public.sessions ADD COLUMN canal TEXT NOT NULL DEFAULT 'whatsapp';")
+
+        # 3) Unique lógico por (user_id, platform)
+        cur.execute("""
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_indexes
+            WHERE schemaname = 'public' AND indexname = 'sessions_user_platform_key'
+          ) THEN
+            EXECUTE 'CREATE UNIQUE INDEX sessions_user_platform_key ON public.sessions (user_id, platform)';
+          END IF;
+        END $$;
+        """)
+
+        # 4) Índice auxiliar nombrado (opcional si ya tienes el único)
+        cur.execute("""
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_indexes
+            WHERE schemaname = 'public' AND indexname = 'idx_sessions_user_platform'
+          ) THEN
+            EXECUTE 'CREATE INDEX idx_sessions_user_platform ON public.sessions (user_id, platform)';
+          END IF;
+        END $$;
+        """)
+
+        # 5) Diagnóstico de columnas
+        cur.execute("""
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='sessions'
+        ORDER BY ordinal_position
+        """)
+        cols = [r["column_name"] for r in cur.fetchall()]
+        log.info("🧩 Columnas sessions: %s", ", ".join(cols))
+
   'unknown_' || substr(md5(random()::text || clock_timestamp()::text), 1, 12)
+                   current_state: str, has_greeted: bool,
+                   status: str = "ok", extra: dict | None = None,
+                   canal: str = "whatsapp") -> None:
+    """
+    UPSERT idempotente. Actualiza last_activity_ts y columnas de estado.
+    """
+    if extra is None:
+        extra = {}
+    sql = """
+    INSERT INTO public.sessions (user_id, platform, current_state, has_greeted, status, extra, last_activity_ts, canal)
+    VALUES (%s, %s, %s, %s, %s, %s::jsonb, now(), %s)
+    ON CONFLICT (user_id, platform) DO UPDATE
+    SET current_state = EXCLUDED.current_state,
+        has_greeted   = EXCLUDED.has_greeted,
+        status        = EXCLUDED.status,
+        extra         = EXCLUDED.extra,
+        canal         = EXCLUDED.canal,
+        last_activity_ts = now();
+    """
+    vals = (user_id, platform, current_state, has_greeted, status, psycopg2.extras.Json(extra), canal)
+    try:
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute(sql, vals)
+    except psycopg2.Error as e:
+        log.error("sessions: UPSERT sessions falló | pgcode=%s | pgerror=%s", getattr(e, "pgcode", None), getattr(e, "pgerror", str(e)))
+        raise
 )
 WHERE user_id IS NULL;
 
