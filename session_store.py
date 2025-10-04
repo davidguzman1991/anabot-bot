@@ -1,3 +1,48 @@
+def touch_session(
+    user_id: str,
+    platform: str,
+    canal: str = "whatsapp",
+) -> int:
+    """
+    Marca actividad reciente de la sesión:
+      - actualiza last_activity_ts a NOW()
+      - asegura el canal (si viene)
+    Si no existe la sesión, la crea con valores mínimos.
+    Devuelve la cantidad de filas afectadas en el UPDATE (0 o 1).
+    """
+    if not canal:
+        canal = platform or "whatsapp"
+
+    conn = get_conn()
+    try:
+        with conn, conn.cursor() as cur:
+            # Intento de UPDATE
+            cur.execute(
+                """
+                UPDATE public.sessions
+                SET last_activity_ts = NOW(),
+                    canal = COALESCE(%s, canal)
+                WHERE user_id = %s AND platform = %s
+                """,
+                (canal, user_id, platform),
+            )
+            updated = cur.rowcount
+
+            # Si no existía, la creo para que hooks no falle
+            if updated == 0:
+                upsert_session(
+                    user_id=user_id,
+                    platform=platform,
+                    current_state="idle",
+                    has_greeted=False,
+                    status="ok",
+                    extra={},
+                    canal=canal,
+                )
+                return 1
+            return updated
+    finally:
+        conn.close()
 # session_store.py — versión estable y idempotente
 from __future__ import annotations
 
