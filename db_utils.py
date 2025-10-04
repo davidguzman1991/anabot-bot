@@ -1,3 +1,44 @@
+# db_utils.py — versión estable
+import os
+import time
+import logging
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger("db")
+logger.setLevel(logging.INFO)
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+def get_conn():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL no configurada")
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
+def wait_for_db(max_attempts: int = 10, delay: float = 1.5) -> bool:
+    """Intenta conectar varias veces antes de rendirse (para containers que arrancan lento)."""
+    for i in range(1, max_attempts + 1):
+        try:
+            with get_conn() as conn, conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+            logger.info("[DB] saludable en intento %s/%s", i, max_attempts)
+            return True
+        except Exception as e:
+            logger.warning("[DB] intento %s/%s falló: %s", i, max_attempts, e)
+            time.sleep(delay)
+    return False
+
+def db_health() -> bool:
+    """True si la BD responde; False si no."""
+    try:
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            cur.fetchone()
+        return True
+    except Exception as e:
+        logger.error("[DB] healthcheck falló: %s", e)
+        return False
 import time
 
 def wait_for_db(max_attempts: int = 10, delay: float = 1.5):

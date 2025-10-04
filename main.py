@@ -85,7 +85,8 @@ def get_flow_engine() -> FlowEngine:
 # Endpoint de salud de base de datos
 @app.get("/health/db")
 def health_db():
-    return {"ok": db_health()}
+    ok = db_health()
+    return {"ok": ok}, (200 if ok else 500)
 
 
 def _append_footer(message: str) -> str:
