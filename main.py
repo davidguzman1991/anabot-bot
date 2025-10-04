@@ -58,6 +58,7 @@ FOOTER_TEXT = "\n\n0 Atrás · 9 Inicio · 00 Humano"
 # Inicialización de la app
 app = FastAPI(title="AnaBot", version="1.0.0")
 startup_log = logging.getLogger("startup")
+startup_log = logging.getLogger("startup")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -72,7 +73,6 @@ app.add_middleware(
 def on_startup():
     ok = wait_for_db()
     startup_log.info("DB wait_for_db: %s", ok)
-
     try:
         with get_conn() as conn, conn.cursor() as cur:
             cur.execute("SELECT current_database() AS db, current_schema() AS schema;")
@@ -82,7 +82,6 @@ def on_startup():
             startup_log.info("Connected to DB=%s schema=%s", db, schema)
     except Exception as e:
         startup_log.warning("Could not log DB/schema: %s", e)
-
     ensure_session_schema()
     startup_log.info("sessions schema ensured")
 
@@ -96,8 +95,7 @@ def get_flow_engine() -> FlowEngine:
 # Endpoint de salud de base de datos
 @app.get("/health/db")
 def health_db():
-    ok = db_health()
-    return {"ok": ok}, (200 if ok else 500)
+    return {"ok": db_health()}
 
 
 def _append_footer(message: str) -> str:
