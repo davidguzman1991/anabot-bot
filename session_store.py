@@ -1,6 +1,6 @@
-from psycopg2 import Error as PGError
-# session_store.py — rewrite from scratch (robusto e idempotente)
 from __future__ import annotations
+# session_store.py — rewrite from scratch (robusto e idempotente)
+from psycopg2 import Error as PGError
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 import json
