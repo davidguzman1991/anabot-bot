@@ -65,29 +65,35 @@ def get_hooks() -> Hooks:
 
 @app.on_event("startup")
 def bootstrap():
-
+    # 1) Arranque y esquema
     wait_for_db()
     ensure_session_schema()
-    # 🧠 Diagnóstico: muestra la base, esquema y columnas reales vistas por la app
+
+    # 2) Carga del flow (si tienes get_engine(), mantenlo)
+    try:
+        eng = get_engine()
+        log.info("Flow cargado: nodes=%s edges=%s start=%s", len(eng.nodes), len(eng.edges), eng.start_node)
+    except Exception:
+        log.exception("No pude cargar el FlowEngine")
+
+    # 3) 🔍 Diagnóstico: DB, schema, host y columnas reales
     try:
         with get_conn() as conn, conn.cursor() as cur:
-            cur.execute("SELECT current_database(), current_schema(), inet_server_addr()::text;")
-            db, schema, host = cur.fetchone()
-            log.info(f"✅ DB conectada: {db} | Esquema: {schema} | Host: {host}")
+            cur.execute("SELECT current_database() AS db, current_schema() AS sch, inet_server_addr()::text AS host;")
+            row = cur.fetchone()  # RealDictCursor => dict
+            db, sch, host = row["db"], row["sch"], row["host"]
+            log.info("✅ DB conectada: %s | schema: %s | host: %s", db, sch, host)
 
             cur.execute("""
-                SELECT string_agg(column_name, ', ' ORDER BY ordinal_position)
+                SELECT column_name
                 FROM information_schema.columns
-                WHERE table_schema='public' AND table_name='sessions';
+                WHERE table_schema='public' AND table_name='sessions'
+                ORDER BY ordinal_position;
             """)
-            cols = cur.fetchone()[0]
-            log.info(f"🧩 Columnas visibles en public.sessions: {cols}")
-    except Exception as e:
-        log.error(f"Error al obtener diagnóstico de BD: {e}")
-
-    # precargar engine para validar flow.json al arranque
-    eng = get_engine()
-    log.info("Flow cargado: nodes=%s edges=%s start=%s", len(eng.nodes), len(eng.edges), eng.start_node)
+            cols = [r["column_name"] for r in cur.fetchall()]
+            log.info("🧩 Columns sessions: %s", ", ".join(cols) if cols else "<vacío>")
+    except Exception:
+        log.exception("Diag BD falló")
 
 @app.get("/health")
 def health():
