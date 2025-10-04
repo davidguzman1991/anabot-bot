@@ -127,34 +127,10 @@ def upsert_session(user_id: str, platform: str, current_state: str = "idle", cha
 
   return get_session(user_id, platform)  # type: ignore[return-value]
 
-def update_session(user_id: str, platform: str, **fields: Any) -> Dict[str, Any]:
-    """Alias de upsert_session (actualiza siempre que exista; si no, crea)."""
-    return upsert_session(user_id, platform, **fields)
 
-def reset_session(user_id: str, platform: str) -> Dict[str, Any]:
-    """Resetea campos lógicos a valores por defecto conservando extra si quieres."""
-    sql = """
-    UPDATE public.sessions
-    SET has_greeted = FALSE,
-        current_state = 'idle',
-        status = 'pendiente',
-        extra = '{}'::jsonb,
-        last_activity_ts = %s
-    WHERE user_id = %s AND platform = %s
-    """
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(sql, (_now(), user_id, platform))
-        if cur.rowcount == 0:
-            # Si no existía, créala reseteada
-            return upsert_session(
-                user_id, platform,
-                has_greeted=False,
-                current_state='idle',
-                status='pendiente',
-                extra={}
-            )
-        conn.commit()
-    return get_session(user_id, platform)  # type: ignore[return-value]
+def update_session(user_id: str, platform: str, **fields: Any) -> None:
+    """Alias de upsert_session (actualiza siempre que exista; si no, crea)."""
+    upsert_session(user_id, platform, **fields)
 
 def touch_session(user_id: str, platform: str) -> None:
     """Solo actualiza el timestamp de actividad."""
