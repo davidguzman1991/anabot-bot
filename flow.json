@@ -1,63 +1,21 @@
 
 {
-  "version": "1.0",
-  "globals": {
-    "greeting": "¡Buen {{momento}}! Soy *Ana*, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?\nResponde con el número correspondiente a las siguientes opciones:",
-    "menuOpciones": "1. Más información de servicios Médicos\n2. Agendar cita Médica\n3. Reagendar o cancelar\n4. Consultar Cita Médica\n5. Solicitar hablar con el Dr. Guzmán\n\n0 Atrás · 9 Inicio"
-  },
-  "defaultStartNode": "MENU_PRINCIPAL",
+  "defaultStartNode": "menu_principal",
   "nodes": [
-    {
-      "id": "MENU_PRINCIPAL",
-      "type": "choice",
-      "text": "{{greeting}}\n\n{{menuOpciones}}",
-      "options": [
-        { "label": "1", "target": "INFO_SERVICIOS" },
-        { "label": "2", "target": "AGENDAR_START" },
-        { "label": "3", "target": "REAGENDAR" },
-        { "label": "4", "target": "CONSULTAR_CITA" },
-        { "label": "5", "target": "HABLAR_DOCTOR" },
-        { "label": "0", "target": "MENU_PRINCIPAL" },
-        { "label": "9", "target": "MENU_PRINCIPAL" }
-      ]
-    },
-
-
-
-    {
-      "id": "AGENDAR_START",
-      "type": "message",
-      "text": "🗓️ *Agendar Cita Médica*\n\nPara empezar, por favor escribe tu *número de cédula (10 dígitos)* o *pasaporte*.\n\n0 Atrás · 9 Inicio",
-      "next": "AGENDAR_ESPERA_ID"
-    },
-    {
-      "id": "AGENDAR_ESPERA_ID",
-      "type": "system",
-      "text": "ESPERANDO_ID",
-      "next": "AGENDAR_ENRUTA_POR_ID"
-    },
-    {
-      "id": "AGENDAR_ENRUTA_POR_ID",
-      "type": "message",
-      "text": "Procesando documento…",
-      "next": "AGENDAR_DUMMY" 
-    },
-
-
-    {
-      "id": "AGENDAR_PEDIR_NOMBRE",
-      "type": "message",
-      "text": "📝 No encontramos tu registro.\nPor favor escribe *un nombre y dos apellidos* (ej: *Maria Lopez Garcia*).\n\n0 Atrás · 9 Inicio",
-      "next": "AGENDAR_ESPERA_NOMBRE"
-    },
-    {
-      "id": "AGENDAR_ESPERA_NOMBRE",
-      "type": "system",
-      "text": "ESPERANDO_NOMBRE",
-      "next": "AGENDAR_PEDIR_FNAC"
-    },
-    {
-      "id": "AGENDAR_PEDIR_FNAC",
+    { "id": "menu_principal", "label": "👋 Hola, elige una opción:", "payload": { "menu": ["Ver productos", "Hablar con asesor", "Ver horarios"] } },
+    { "id": "productos", "label": "🧾 Estos son nuestros productos…", "payload": { "menu": ["Volver al inicio"] } },
+    { "id": "asesor", "label": "👩‍💼 Un asesor se comunicará contigo pronto.", "payload": { "menu": ["Volver al inicio"] } },
+    { "id": "horarios", "label": "🕒 Lunes a Viernes 9–18h.", "payload": { "menu": ["Volver al inicio"] } }
+  ],
+  "edges": [
+    { "source": "menu_principal", "target": "productos", "label": "1" },
+    { "source": "menu_principal", "target": "asesor",    "label": "2" },
+    { "source": "menu_principal", "target": "horarios",  "label": "3" },
+    { "source": "productos", "target": "menu_principal", "label": "1" },
+    { "source": "asesor",    "target": "menu_principal", "label": "1" },
+    { "source": "horarios",  "target": "menu_principal", "label": "1" }
+  ]
+}
       "type": "message",
       "text": "🎂 *Fecha de nacimiento*\nAyúdame digitando tu fecha en formato *DD-MM-AAAA* (ej: *20-06-1991*).\n\n0 Atrás · 9 Inicio",
       "next": "AGENDAR_ESPERA_FNAC"

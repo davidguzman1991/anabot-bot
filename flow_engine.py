@@ -50,97 +50,98 @@ class FlowEngine:
         custom_shortcuts = self.globals.get("shortcuts", {})
         self.shortcuts = {**base_shortcuts, **custom_shortcuts}
         self.hooks = Hooks(self.globals)
-        self.store = store or MemoryStore()
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-    def _normalize_type(self, node: Dict[str, Any]) -> str:
-        ntype = (node.get("type") or "").lower()
-        if ntype == "menu":
-            return "choice"
-        return ntype or "message"
+        import json
+        from pathlib import Path
+        from typing import Dict, Any, List, Optional
 
-    def _get_nested(self, data: Dict[str, Any], parts: List[str]) -> Any:
-        cur: Any = data
-        for part in parts:
-            if isinstance(cur, dict) and part in cur:
-                cur = cur[part]
-            else:
+        class FlowEngine:
+            def __init__(self, flow_path: str = "flow.json") -> None:
+                self.flow_path = flow_path
+                self.flow: Dict[str, Any] = {}
+                self.nodes: Dict[str, Dict[str, Any]] = {}
+                self.start_node: Optional[str] = None
+                self._load()
+
+            def _load(self) -> None:
+                p = Path(self.flow_path)
+                if not p.exists():
+                    # Flow mínimo por si falta el archivo
+                    self.flow = {"nodes": [], "edges": [], "defaultStartNode": None}
+                    self.nodes = {}
+                    self.start_node = None
+                    return
+                self.flow = json.loads(p.read_text(encoding="utf-8"))
+
+                # aceptar tanto {"id","label"} como {"data":{"label":..}} y edges con "target"/"to"
+                nodes = self.flow.get("nodes", [])
+                self.nodes = {}
+                for n in nodes:
+                    nid = n.get("id") or (n.get("data") or {}).get("id")
+                    if not nid:
+                        continue
+                    label = n.get("label") or (n.get("data") or {}).get("label") or ""
+                    payload = n.get("payload") or (n.get("data") or {}).get("payload") or {}
+                    self.nodes[nid] = {"id": nid, "label": label, "payload": payload}
+
+                # start node: defaultStartNode o primer nodo
+                self.start_node = (
+                    self.flow.get("defaultStartNode")
+                    or self.flow.get("startNode")
+                    or (nodes[0]["id"] if nodes else None)
+                )
+
+                # indexar edges en forma normalizada
+                self.edges: List[Dict[str, Any]] = []
+                for e in self.flow.get("edges", []):
+                    src = e.get("source") or e.get("from")
+                    dst = e.get("target") or e.get("to")
+                    cond = e.get("cond") or e.get("condition") or e.get("label") or ""
+                    if src and dst:
+                        self.edges.append({"source": src, "target": dst, "cond": cond.lower().strip()})
+
+            def _next_by_text(self, current_id: str, text: str) -> Optional[str]:
+                t = (text or "").lower().strip()
+                # match exacto por cond o por número (1,2,3) si cond empieza con "1) ..."
+                for e in self.edges:
+                    if e["source"] != current_id:
+                        continue
+                    c = e["cond"]
+                    if not c:
+                        continue
+                    if t == c:
+                        return e["target"]
+                    # soporte numerado "1", "2", etc.
+                    if c[:2].isdigit() and t == c[:1]:
+                        return e["target"]
                 return None
-        return cur
 
-    def _set_nested(self, ctx: Dict[str, Any], path: str, value: Any):
-        if not path:
-            return
-        parts = path.split(".")
-        cur = ctx
-        for part in parts[:-1]:
-            if part not in cur or not isinstance(cur[part], dict):
-                cur[part] = {}
-            cur = cur[part]
-        cur[parts[-1]] = value
-
-    def _resolve_path(self, path: str, ctx: Dict[str, Any]) -> Any:
-        if not path:
-            return None
-        parts = path.split(".")
-        value = self._get_nested(ctx, parts)
-        if value is not None:
-            return value
-        return self._get_nested(self.globals, parts)
-
-    def _resolve_value(self, value: Any, ctx: Dict[str, Any], current_text: str = "") -> Any:
-        if isinstance(value, str):
-            if value in ("@input", "{input}"):
-                return current_text
-            if value.startswith("@"):
-                return self._resolve_path(value[1:], ctx)
-            if value.startswith("{") and value.endswith("}"):
-                return self._resolve_path(value[1:-1], ctx)
-        return value
-
-    def _run_hook(self, hook_spec: Any, ctx: Dict[str, Any], current_text: str = "") -> Any:
-        if not hook_spec:
-            return None
-        if isinstance(hook_spec, str):
-            hook_spec = {"hook": hook_spec}
-        name = hook_spec.get("hook")
-        if not name:
-            return None
-        args = [self._resolve_value(arg, ctx, current_text) for arg in hook_spec.get("args", [])]
-        result = self.hooks.call(name, *args, ctx=ctx)
-        save_as = hook_spec.get("save_as")
-        if save_as:
-            self._set_nested(ctx, save_as, result)
-        return result
-
-    def _run_hooks_list(self, hook_specs: Optional[List[Dict[str, Any]]], ctx: Dict[str, Any], current_text: str = "") -> Optional[str]:
-        if not hook_specs:
-            return None
-        for spec in hook_specs:
-            result = self._run_hook(spec, ctx, current_text)
-            if isinstance(result, bool):
-                if result and spec.get("if_true_next"):
-                    return spec["if_true_next"]
-                if (not result) and spec.get("if_false_next"):
-                    return spec["if_false_next"]
-        return None
-
-    def _apply_save_map(self, save_spec: Any, ctx: Dict[str, Any]):
-        if isinstance(save_spec, dict):
-            for path, value in save_spec.items():
-                self._set_nested(ctx, path, value)
-
-    def _set_node(self, st: Dict[str, Any], next_id: str, push_history: bool = True):
-        if not next_id:
-            return
-        if push_history:
-            history = st.setdefault("history", [])
-            current = st.get("node")
-            if current and (not history or history[-1] != current):
-                history.append(current)
-        st["node"] = next_id
+            def run(self, text: str, current_id: Optional[str]) -> Dict[str, Any]:
+                """
+                Devuelve {"reply": [msg,...], "next": node_id} o {} si no hay flujo.
+                """
+                if not self.nodes or not self.start_node:
+                    return {}
+                node_id = current_id or self.start_node
+                nxt = self._next_by_text(node_id, text)
+                if nxt is None:
+                    # si no hay transición, devuelve el menú del nodo actual
+                    node = self.nodes.get(node_id)
+                    if not node:
+                        return {}
+                    label = node.get("label") or ""
+                    payload = node.get("payload") or {}
+                    menu = payload.get("menu") or []
+                    parts = [label] + [f"{i+1}) {opt}" for i, opt in enumerate(menu)]
+                    return {"reply": ["\n".join([p for p in parts if p])], "next": node_id}
+                node = self.nodes.get(nxt)
+                if not node:
+                    return {}
+                label = node.get("label") or ""
+                payload = node.get("payload") or {}
+                menu = payload.get("menu") or []
+                parts = [label] + [f"{i+1}) {opt}" for i, opt in enumerate(menu)]
+                return {"reply": ["\n".join([p for p in parts if p])], "next": nxt}
         st["_needs_on_enter"] = True
         st["inactivity_stage"] = 0
 
