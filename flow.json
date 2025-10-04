@@ -1,153 +1,80 @@
-
 {
   "defaultStartNode": "menu_principal",
   "nodes": [
-    { "id": "menu_principal", "label": "👋 Hola, elige una opción:", "payload": { "menu": ["Ver productos", "Hablar con asesor", "Ver horarios"] } },
-    { "id": "productos", "label": "🧾 Estos son nuestros productos…", "payload": { "menu": ["Volver al inicio"] } },
-    { "id": "asesor", "label": "👩‍💼 Un asesor se comunicará contigo pronto.", "payload": { "menu": ["Volver al inicio"] } },
-    { "id": "horarios", "label": "🕒 Lunes a Viernes 9–18h.", "payload": { "menu": ["Volver al inicio"] } }
-  ],
-  "edges": [
-    { "source": "menu_principal", "target": "productos", "label": "1" },
-    { "source": "menu_principal", "target": "asesor",    "label": "2" },
-    { "source": "menu_principal", "target": "horarios",  "label": "3" },
-    { "source": "productos", "target": "menu_principal", "label": "1" },
-    { "source": "asesor",    "target": "menu_principal", "label": "1" },
-    { "source": "horarios",  "target": "menu_principal", "label": "1" }
-  ]
-}
-      "type": "message",
-      "text": "🎂 *Fecha de nacimiento*\nAyúdame digitando tu fecha en formato *DD-MM-AAAA* (ej: *20-06-1991*).\n\n0 Atrás · 9 Inicio",
-      "next": "AGENDAR_ESPERA_FNAC"
-    },
     {
-      "id": "AGENDAR_ESPERA_FNAC",
-      "type": "system",
-      "text": "ESPERANDO_FNAC",
-      "next": "AGENDAR_PEDIR_TEL"
+      "id": "menu_principal",
+      "label": "👋 Hola, elige una opción:",
+      "payload": { "menu": ["Info de servicios", "Agendar cita", "Hablar con asesor"] }
     },
-    {
-      "id": "AGENDAR_PEDIR_TEL",
-      "type": "message",
-      "text": "📱 *Número de contacto*\nIndica tu celular/WhatsApp (ej: *09xxxxxxxx*).\n\n0 Atrás · 9 Inicio",
-      "next": "AGENDAR_ESPERA_TEL"
-    },
-    {
-      "id": "AGENDAR_ESPERA_TEL",
-      "type": "system",
-      "text": "ESPERANDO_TEL",
-      "next": "AGENDAR_PEDIR_EMAIL"
-    },
-    {
-      "id": "AGENDAR_PEDIR_EMAIL",
-      "type": "message",
-      "text": "✉️ *Correo electrónico*\nEscribe tu email (ej: *nombre@mail.com*). Si no tienes, escribe *ninguno* para continuar.\n\n0 Atrás · 9 Inicio",
-      "next": "AGENDAR_ESPERA_EMAIL"
-    },
-    {
-      "id": "AGENDAR_ESPERA_EMAIL",
-      "type": "system",
-      "text": "ESPERANDO_EMAIL",
-      "next": "AGENDAR_ELIGE_DIA"
-    },
-
-
-    {
-      "id": "AGENDAR_ELIGE_DIA",
-      "type": "choice",
-      "text": "📅 Indica qué día deseas ser atendido. Marca el número:\n1. Hoy\n2. Mañana\n3. Otra fecha\n\n0 Atrás · 9 Inicio",
-      "options": [
-        { "label": "1", "target": "AGENDAR_CONFIRMA_HOY" },
-        { "label": "2", "target": "AGENDAR_CONFIRMA_MANANA" },
-        { "label": "3", "target": "AGENDAR_PEDIR_FECHA_OTRA" },
-        { "label": "0", "target": "MENU_PRINCIPAL" },
-        { "label": "9", "target": "MENU_PRINCIPAL" }
-      ]
-    },
-
-
-    {
-      "id": "AGENDAR_BIENVENIDA_EXISTE",
-      "type": "message",
-      "text": "👋 *Bienvenido/a {{nombre_apellido}}.*\nIndícame qué día deseas ser atendido. Marca el número:\n1. Hoy\n2. Mañana\n3. Otra fecha\n\n0 Atrás · 9 Inicio",
-      "next": "AGENDAR_ELIGE_DIA"
-    },
-
-
-    {
-      "id": "AGENDAR_PEDIR_FECHA_OTRA",
-      "type": "message",
-      "text": "🗓️ *Otra fecha*\nEscribe la fecha en formato *DD-MM-AAAA*.\n\n0 Atrás · 9 Inicio",
-      "next": "AGENDAR_ESPERA_FECHA_OTRA"
-    },
-    {
-      "id": "AGENDAR_ESPERA_FECHA_OTRA",
-      "type": "system",
-      "text": "ESPERANDO_FECHA_OTRA",
-      "next": "AGENDAR_CONFIRMAR_CITA"
-    },
-
-
-    {
-      "id": "AGENDAR_CONFIRMA_HOY",
-      "type": "message",
-      "text": "📌 Perfecto. Reservando *para hoy*. Un momento por favor…",
-      "next": "AGENDAR_CONFIRMAR_CITA"
-    },
-    {
-      "id": "AGENDAR_CONFIRMA_MANANA",
-      "type": "message",
-      "text": "📌 Perfecto. Reservando *para mañana*. Un momento por favor…",
-      "next": "AGENDAR_CONFIRMAR_CITA"
-    },
-    {
-      "id": "AGENDAR_CONFIRMAR_CITA",
-      "type": "message",
-      "text": "✅ *Tu solicitud de cita ha sido registrada.* Te confirmaremos la hora disponible.\n\n0 Atrás · 9 Inicio",
-      "next": "MENU_PRINCIPAL"
-    },
-
-
-    { "id": "AGENDAR_DUMMY", "type": "system", "text": "DUMMY" },
-
-
     {
       "id": "INFO_SERVICIOS",
-      "type": "choice",
-      "text": "💡 *Más información de servicios*\n\nMis servicios médicos tienen un valor de *💲45 DOL.* 💵.\n\nCada consulta dura aproximadamente 60 minutos e incluye:\n\n🟢 **Electrocardiograma (ECG)**\n🟢 **Asesoría nutricional + plan personalizado**\n🟢 **Educación en diabetes (paciente y familia)**\n🟢 **Examen de Neuropatía Diabética y Pie Diabético**\n🟢 **Valoración de riesgo cardiovascular y renal**\n\n📍 Atención previa cita en *Guayaquil* y *Milagro*.\n\nElige una opción:\n1. Dirección Guayaquil\n2. Dirección Milagro\n\n0 Atrás · 9 Inicio",
-      "options": [
-        { "label": "1", "target": "DIRECCION_GYE" },
-        { "label": "2", "target": "DIRECCION_MIL" },
-        { "label": "0", "target": "MENU_PRINCIPAL" },
-        { "label": "9", "target": "MENU_PRINCIPAL" }
-      ]
+      "label": "💡 *Servicios*\n\nMis consultas tienen un valor de *$45*. Incluyen:\n• ECG\n• Plan nutricional\n• Educación en diabetes\n• Examen de neuropatía\n• Valoración de riesgo CV\n\n1) Dirección Guayaquil\n2) Dirección Milagro\n\n0) Atrás · 9) Inicio",
+      "payload": { "menu": [] }
     },
     {
       "id": "DIRECCION_GYE",
-      "type": "choice",
-      "text": "📍 *Guayaquil*\nHospital de Especialidades (Torre Sur), Consultorio 204 (antigua Clínica Kennedy Alborada).\n\n🗺️ [Ver en Google Maps](https://maps.app.goo.gl/7J8v9V9RJHfxADfz7)\n\n1. Agendar Cita Médica\n\n0 Atrás · 9 Inicio",
-      "options": [
-        { "label": "1", "target": "AGENDAR_START" },
-        { "label": "0", "target": "INFO_SERVICIOS" },
-        { "label": "9", "target": "MENU_PRINCIPAL" }
-      ]
+      "label": "📍 Guayaquil: Av. Ejemplo 123, Piso 2. Atención previa cita.\n\n0) Atrás · 9) Inicio",
+      "payload": { "menu": [] }
     },
     {
       "id": "DIRECCION_MIL",
-      "type": "choice",
-      "text": "📍 *Milagro*\nClínica Santa Elena, Av. Cristóbal Colón y calle P.J. Montero.\n\n🗺️ [Ver en Google Maps](https://maps.app.goo.gl/7hh97D7JDcznqRSK9)\n\n1. Agendar Cita Médica\n\n0 Atrás · 9 Inicio",
-      "options": [
-        { "label": "1", "target": "AGENDAR_START" },
-        { "label": "0", "target": "INFO_SERVICIOS" },
-        { "label": "9", "target": "MENU_PRINCIPAL" }
-      ]
+      "label": "📍 Milagro: Calle Principal 456, Consultorio A. Atención previa cita.\n\n0) Atrás · 9) Inicio",
+      "payload": { "menu": [] }
+    },
+    {
+      "id": "ASESOR",
+      "label": "👩‍⚕️ Un asesor se comunicará contigo a la brevedad.\n\n0) Atrás · 9) Inicio",
+      "payload": { "menu": [] }
     },
 
+    {
+      "id": "AGENDAR_PEDIR_FNAC",
+      "label": "🎂 *Fecha de nacimiento*\nEscribe en formato *DD-MM-AAAA* (ej: *20-06-1991*).\n\n0) Atrás · 9) Inicio",
+      "payload": { "menu": [] }
+    },
+    {
+      "id": "AGENDAR_ESPERA_FNAC",
+      "label": "ESPERANDO_FNAC",
+      "payload": { "menu": [] }
+    },
+    {
+      "id": "AGENDAR_PEDIR_TEL",
+      "label": "📱 *Número de contacto*\nIndica tu celular/WhatsApp (ej: *09xxxxxxxx*).\n\n0) Atrás · 9) Inicio",
+      "payload": { "menu": [] }
+    },
+    {
+      "id": "AGENDAR_ESPERA_TEL",
+      "label": "ESPERANDO_TEL",
+      "payload": { "menu": [] }
+    }
+  ],
+  "edges": [
+    { "source": "menu_principal", "target": "INFO_SERVICIOS",     "label": "1" },
+    { "source": "menu_principal", "target": "AGENDAR_PEDIR_FNAC", "label": "2" },
+    { "source": "menu_principal", "target": "ASESOR",             "label": "3" },
 
-    { "id": "REAGENDAR", "type": "message", "text": "🔄 Para reagendar o cancelar tu cita, indícanos tu nombre completo y la fecha de la cita previa.\n\n0 Atrás · 9 Inicio", "next": "MENU_PRINCIPAL" },
-    { "id": "CONSULTAR_CITA", "type": "message", "text": "📋 Para consultar tu cita, por favor escribe tu número de cédula o el nombre con el que fue registrada la cita.\n\n0 Atrás · 9 Inicio", "next": "MENU_PRINCIPAL" },
-    { "id": "HABLAR_DOCTOR", "type": "message", "text": "☎️ Un momento por favor… en breve te atenderá el Dr. Guzmán.\n\n0 Atrás · 9 Inicio", "next": "MENU_PRINCIPAL" }
+    { "source": "INFO_SERVICIOS", "target": "DIRECCION_GYE", "label": "1" },
+    { "source": "INFO_SERVICIOS", "target": "DIRECCION_MIL", "label": "2" },
+    { "source": "INFO_SERVICIOS", "target": "menu_principal", "label": "0" },
+    { "source": "INFO_SERVICIOS", "target": "menu_principal", "label": "9" },
+
+    { "source": "DIRECCION_GYE", "target": "menu_principal", "label": "0" },
+    { "source": "DIRECCION_GYE", "target": "menu_principal", "label": "9" },
+    { "source": "DIRECCION_MIL", "target": "menu_principal", "label": "0" },
+    { "source": "DIRECCION_MIL", "target": "menu_principal", "label": "9" },
+
+    { "source": "ASESOR", "target": "menu_principal", "label": "0" },
+    { "source": "ASESOR", "target": "menu_principal", "label": "9" },
+
+    { "source": "AGENDAR_PEDIR_FNAC", "target": "menu_principal",   "label": "0" },
+    { "source": "AGENDAR_PEDIR_FNAC", "target": "menu_principal",   "label": "9" },
+    { "source": "AGENDAR_ESPERA_FNAC", "target": "AGENDAR_PEDIR_TEL", "label": "" },
+
+    { "source": "AGENDAR_PEDIR_TEL", "target": "menu_principal", "label": "0" },
+    { "source": "AGENDAR_PEDIR_TEL", "target": "menu_principal", "label": "9" },
+    { "source": "AGENDAR_ESPERA_TEL", "target": "menu_principal", "label": "" }
   ]
 }
+
 
 

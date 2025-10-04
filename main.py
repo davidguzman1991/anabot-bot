@@ -89,7 +89,7 @@ def on_startup():
     startup_log.info("sessions schema ensured")
     global FLOW_ENGINE, HOOKS
     FLOW_ENGINE = FlowEngine(flow_path=str(FLOW_PATH))
-    HOOKS = Hooks(FLOW_ENGINE)
+    HOOKS = Hooks(globals_cfg={"engine": FLOW_ENGINE})
 
 
 
