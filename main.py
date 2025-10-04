@@ -72,10 +72,17 @@ app.add_middleware(
 def on_startup():
     ok = wait_for_db()
     startup_log.info("DB wait_for_db: %s", ok)
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute("SELECT current_database(), current_schema()")
-        row = cur.fetchone()
-        startup_log.info("Connected to DB=%s schema=%s", row[0], row[1])
+
+    try:
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT current_database() AS db, current_schema() AS schema;")
+            row = cur.fetchone()
+            db = row["db"] if isinstance(row, dict) else row[0]
+            schema = row["schema"] if isinstance(row, dict) else row[1]
+            startup_log.info("Connected to DB=%s schema=%s", db, schema)
+    except Exception as e:
+        startup_log.warning("Could not log DB/schema: %s", e)
+
     ensure_session_schema()
     startup_log.info("sessions schema ensured")
 
