@@ -43,18 +43,21 @@ def touch_session(
             return updated
     finally:
         conn.close()
-# session_store.py — versión estable y idempotente
+
+# session_store.py
 from __future__ import annotations
 
 import os
-import json
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime, timezone
 
 import psycopg2
+from psycopg2.extras import Json
+
+import json
+from datetime import datetime, timezone
 from psycopg2 import Error as PGError
-from psycopg2.extras import RealDictCursor, Json
+from psycopg2.extras import RealDictCursor
 
 log = logging.getLogger("anabot")
 
