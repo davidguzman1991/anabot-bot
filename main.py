@@ -69,7 +69,7 @@ def bootstrap():
     ensure_session_schema()
     # precargar engine para validar flow.json al arranque
     eng = get_engine()
-    log.info("Flow cargado: nodes=%s edges=%s start=%s", len(eng.graph["nodes"]), len(eng.graph["edges"]), eng.start_id)
+    log.info("Flow cargado: nodes=%s edges=%s start=%s", len(eng.nodes), len(eng.edges), eng.start_node)
 
 @app.get("/health")
 def health():
