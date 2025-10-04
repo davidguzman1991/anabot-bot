@@ -1,7 +1,6 @@
 import logging
 flog = logging.getLogger("flow")
 # flow_engine.py  —  rewrite from scratch (robusto e idempotente)
-from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import json
