@@ -136,61 +136,44 @@ def upsert_session(
     if not canal:
         canal = platform or "whatsapp"
 
-    sql = """
-        INSERT INTO public.sessions
-            (user_id, platform, current_state, has_greeted, status, extra, last_activity_ts, canal)
-        VALUES
-            (%s, %s, %s, %s, %s, %s::jsonb, NOW(), %s)
-        ON CONFLICT (user_id, platform)
-        DO UPDATE SET
-            current_state     = EXCLUDED.current_state,
-            has_greeted       = EXCLUDED.has_greeted,
-            status            = EXCLUDED.status,
-            extra             = EXCLUDED.extra,
-            last_activity_ts  = NOW(),
-            canal             = EXCLUDED.canal;
+    def upsert_session(
+        user_id: str,
+        platform: str,
+        current_state: str,
+        has_greeted: bool,
+        status: str = "ok",
+        extra: Optional[Dict[str, Any]] = None,
+        canal: str = "whatsapp",
+    ) -> None:
+        """Inserta/actualiza la sesión. Usa 'canal' y también 'user_key' (igual al user_id)."""
+        if not canal:
+            canal = platform or "whatsapp"
+
+        payload_extra = Json(extra or {})
+
+        sql = """
+            INSERT INTO public.sessions
+                (user_id, platform, current_state, has_greeted, status, extra, last_activity_ts, canal, user_key)
+            VALUES
+                (%s, %s, %s, %s, %s, %s::jsonb, NOW(), %s, %s)
+            ON CONFLICT (user_id, platform)
+            DO UPDATE SET
+                current_state    = EXCLUDED.current_state,
+                has_greeted      = EXCLUDED.has_greeted,
+                status           = EXCLUDED.status,
+                extra            = EXCLUDED.extra,
+                last_activity_ts = NOW(),
+                canal            = EXCLUDED.canal,
+                user_key         = EXCLUDED.user_key;
         """
-    vals = (
-        user_id,
-        platform,
-        current_state,
-        has_greeted,
-        status,
-        Json(extra or {}),
-        canal,
-    )
+        vals = (user_id, platform, current_state, has_greeted, status, payload_extra, canal, user_id)
 
-    conn = get_conn()
-    try:
-        with conn:
-            with conn.cursor() as cur:
+        conn = get_conn()
+        try:
+            with conn, conn.cursor() as cur:
                 cur.execute(sql, vals)
-    except PGError as e:
-        log.error(
-            "UPSERT sessions falló | pgcode=%s | pgerror=%s",
-            getattr(e, "pgcode", None),
-            getattr(e, "pgerror", str(e)),
-        )
-        raise
-    finally:
-        conn.close()
-
-def update_session(user_id: str, platform: str, **fields: Any) -> None:
-    """
-    Alias conveniente que reusa upsert_session para actualizar/crear.
-    Campos esperados: current_state, has_greeted, status, extra, canal
-    """
-    current_state = fields.get("current_state", "idle")
-    has_greeted   = fields.get("has_greeted", False)
-    status        = fields.get("status", "ok")
-    extra         = fields.get("extra")
-    canal         = fields.get("canal", "whatsapp")
-    upsert_session(user_id, platform, current_state, has_greeted, status, extra, canal)
-
-def touch_session(user_id: str, platform: str) -> None:
-    """
-    Solo actualiza last_activity_ts; si no existe, crea fila mínima.
-    """
+        finally:
+            conn.close()
     conn = get_conn()
     try:
         with conn:
