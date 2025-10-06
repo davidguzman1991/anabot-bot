@@ -1,41 +1,322 @@
 {
-  "defaultStartNode": "menu_principal",
-  "nodes": [
-    {
-      "id": "menu_principal",
-      "label": "🌞/🌇/🌙 ¡Hola! Soy Ana 🤖, asistente del Dr. David Guzmán.\n\nResponde con el número de la opción que necesitas:\n1️⃣ Más información de **servicios médicos** 🩺\n2️⃣ **Agendar cita médica** 📅\n3️⃣ **Reagendar** o **cancelar cita** 🔁❌\n4️⃣ **Consultar cita médica** 🔎\n5️⃣ **Hablar con el Dr. Guzmán** 👨‍⚕️\n\n(Puedes escribir **9** para volver al inicio en cualquier momento.)",
-      "payload": { "menu": ["Servicios", "Agendar", "Reagendar/Cancelar", "Consultar", "Hablar con el Dr."] }
-    },
-    {
-      "id": "SERVICIOS",
-      "label": "🩺 **Servicios y valor**\n\n💵 Valor: **$45**\n⏱️ Duración: **60 minutos aprox.**\n\nDurante tu cita realizamos:\n🟢 **Electrocardiograma (ECG)**\n🟢 **Asesoría nutricional + plan personalizado**\n🟢 **Educación en diabetes** (paciente y familia)\n🟢 **Examen de neuropatía y pie diabético**\n🟢 **Valoración de riesgo cardiovascular y renal**\n\n📍 Atención **previa cita** en **Guayaquil** y **Milagro**.\n\n1️⃣ Dirección **Guayaquil**\n2️⃣ Dirección **Milagro**\n\n0️⃣ Atrás · 9️⃣ Inicio",
-      "payload": { "menu": ["Dirección Guayaquil", "Dirección Milagro"] }
-    },
-    {
-      "id": "DIRECCION_GYE",
-      "label": "🏥 **Hospital de Especialidades (Torre Sur)**\nConsultorio 204 – Antigua Clínica Kennedy Alborada\n\n📍 Maps: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7\n\n¿Deseas **agendar una cita** aquí?\n1️⃣ Sí, agendar 📅\n\n0️⃣ Atrás · 9️⃣ Inicio",
-      "payload": { "menu": ["Agendar en Guayaquil"] }
-    },
-    {
-      "id": "DIRECCION_MIL",
-      "label": "🏥 **Clínica Santa Elena**\nAv. Cristóbal Colón y Calle P. J. Montero\n\n📍 Maps: https://maps.app.goo.gl/7hh97D7JDcznqRSK9\n\n¿Deseas **agendar una cita** aquí?\n1️⃣ Sí, agendar 📅\n\n0️⃣ Atrás · 9️⃣ Inicio",
-      "payload": { "menu": ["Agendar en Milagro"] }
+  "menu_principal": {
+    "reply": [
+      "👋 ¡Hola! Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?",
+      "Responde con el número correspondiente a las siguientes opciones:",
+      "1. Más información de servicios médicos",
+      "2. Agendar cita médica",
+      "3. Reagendar o cancelar",
+      "4. Consultar cita médica",
+      "5. Solicitar hablar con el Dr. Guzmán",
+      "(9 para inicio • 0 para atrás)"
+    ],
+    "routes": {
+      "1": "servicios",
+      "2": "agendar_intro",
+      "3": "reagendar_intro",
+      "4": "consultar_intro",
+      "5": "hablar_intro"
     }
-  ],
-  "edges": [
-    { "source": "menu_principal", "target": "SERVICIOS", "label": "1" },
+  },
 
-    { "source": "SERVICIOS", "target": "DIRECCION_GYE", "label": "1" },
-    { "source": "SERVICIOS", "target": "DIRECCION_MIL", "label": "2" },
-    { "source": "SERVICIOS", "target": "menu_principal", "label": "0" },
-    { "source": "SERVICIOS", "target": "menu_principal", "label": "9" },
+  "servicios": {
+    "reply": [
+      "💙 *Servicios disponibles*:",
+      "• Consulta médica especializada en Diabetes — incluye ECG, plan nutricional y educación.",
+      "• Consulta de Neuropatía Diabética.",
+      "• Valoración de dolor crónico y riesgo cardio-renal.",
+      "💰 *Valor de la consulta:* $45.",
+      "",
+      "Sedes disponibles:",
+      "1) Dirección Guayaquil",
+      "2) Dirección Milagro",
+      "",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "1": "direccion_gye",
+      "2": "direccion_milagro",
+      "9": "menu_principal",
+      "0": "menu_principal"
+    }
+  },
 
-    { "source": "DIRECCION_GYE", "target": "menu_principal", "label": "0" },
-    { "source": "DIRECCION_GYE", "target": "menu_principal", "label": "9" },
-    { "source": "DIRECCION_MIL", "target": "menu_principal", "label": "0" },
-    { "source": "DIRECCION_MIL", "target": "menu_principal", "label": "9" },
+  "direccion_gye": {
+    "reply": [
+      "🏥 *Dirección Guayaquil*:",
+      "Hospital de Especialidades (Torre Sur), Consultorio 204 (antigua Clínica Kennedy Alborada).",
+      "📍 Dirección GPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7",
+      "",
+      "1) Agendar Cita Médica",
+      "",
+      "0) Atrás",
+      "9) Inicio"
+    ],
+    "routes": {
+      "1": "agendar_intro",
+      "0": "servicios",
+      "9": "menu_principal"
+    }
+  },
 
-    { "source": "DIRECCION_GYE", "target": "menu_principal", "label": "1" },
-    { "source": "DIRECCION_MIL", "target": "menu_principal", "label": "1" }
-  ]
+  "direccion_milagro": {
+    "reply": [
+      "🏥 *Dirección Milagro*:",
+      "Clínica Santa Elena, Av. Cristóbal Colón y calle P.J. Montero.",
+      "📍 Dirección GPS: https://maps.app.goo.gl/7hh97D7JDcznqRSK9",
+      "",
+      "1) Agendar Cita Médica",
+      "",
+      "0) Atrás",
+      "9) Inicio"
+    ],
+    "routes": {
+      "1": "agendar_intro",
+      "0": "servicios",
+      "9": "menu_principal"
+    }
+  },
+
+  "agendar_intro": {
+    "reply": [
+      "Perfecto, vamos a agendar tu cita. Te pediré algunos datos.",
+      "Primero, ingresa tu número de cédula o pasaporte (10 dígitos o texto si es pasaporte).",
+      "Ejemplo (cédula): 0912345678 • (pasaporte): P-ABC123",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": { "continuar": "agendar_esperando_dni" }
+  },
+
+  "agendar_esperando_dni": {
+    "reply": [
+      "✅ Recibido. Ahora escribe tu nombre y dos apellidos.",
+      "Ejemplo: Maria Lopez Garcia",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": { "continuar": "agendar_esperando_nombre" }
+  },
+
+  "agendar_esperando_nombre": {
+    "reply": [
+      "Gracias. Indica tu fecha de nacimiento en formato DD-MM-AAAA.",
+      "Ejemplo: 20-06-1991",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": { "continuar": "agendar_esperando_fnac" }
+  },
+
+  "agendar_esperando_fnac": {
+    "reply": [
+      "Ahora tu número de contacto (celular/WhatsApp).",
+      "Ejemplo: 09xxxxxxxx",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": { "continuar": "agendar_esperando_telefono" }
+  },
+
+  "agendar_esperando_telefono": {
+    "reply": [
+      "Tu correo electrónico. Si no tienes, escribe: ninguno",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": { "continuar": "agendar_esperando_email" }
+  },
+
+  "agendar_esperando_email": {
+    "reply": [
+      "Indica el día que deseas ser atendido. Marca una opción:",
+      "1) Hoy",
+      "2) Mañana",
+      "3) Esta semana",
+      "4) Otra fecha",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "1": "agendar_sede",
+      "2": "agendar_sede",
+      "3": "agendar_sede",
+      "4": "agendar_sede"
+    }
+  },
+
+  "agendar_sede": {
+    "reply": [
+      "Selecciona la sede:",
+      "1) Guayaquil",
+      "2) Milagro",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "1": "agendar_hora",
+      "2": "agendar_hora"
+    }
+  },
+
+  "agendar_hora": {
+    "reply": [
+      "Selecciona un rango de hora disponible:",
+      "1) Mañana",
+      "2) Tarde",
+      "3) Noche",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "1": "agendar_confirmar",
+      "2": "agendar_confirmar",
+      "3": "agendar_confirmar"
+    }
+  },
+
+  "agendar_confirmar": {
+    "reply": [
+      "Confirma tu cita:",
+      "1) Confirmar",
+      "2) Cambiar datos",
+      "3) Cancelar agendamiento",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "1": "agendar_ok",
+      "2": "agendar_intro",
+      "3": "menu_principal"
+    }
+  },
+
+  "agendar_ok": {
+    "reply": [
+      "✅ ¡Listo! Tu cita ha sido registrada.",
+      "Recibirás un mensaje de confirmación con el detalle.",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "9": "menu_principal",
+      "0": "menu_principal"
+    }
+  },
+
+  "reagendar_intro": {
+    "reply": [
+      "Para reagendar o cancelar tu cita necesito verificarte.",
+      "Escribe tu cédula/pasaporte.",
+      "(Luego podrás elegir cambiar fecha/hora o anular la cita.)",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": { "continuar": "reagendar_menu" }
+  },
+
+  "reagendar_menu": {
+    "reply": [
+      "¿Qué deseas hacer?",
+      "1) Reagendar (cambiar fecha/hora)",
+      "2) Cancelar cita",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "1": "reagendar_captura",
+      "2": "cancelar_captura"
+    }
+  },
+
+  "reagendar_captura": {
+    "reply": [
+      "Indica nueva preferencia de día:",
+      "1) Mañana",
+      "2) Esta semana",
+      "3) Otra fecha",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "1": "reagendar_hora",
+      "2": "reagendar_hora",
+      "3": "reagendar_hora"
+    }
+  },
+
+  "reagendar_hora": {
+    "reply": [
+      "Elige rango de hora:",
+      "1) Mañana",
+      "2) Tarde",
+      "3) Noche",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "1": "reagendar_ok",
+      "2": "reagendar_ok",
+      "3": "reagendar_ok"
+    }
+  },
+
+  "reagendar_ok": {
+    "reply": [
+      "✅ Cita reagendada correctamente.",
+      "Te enviaremos la nueva confirmación.",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "9": "menu_principal",
+      "0": "menu_principal"
+    }
+  },
+
+  "cancelar_captura": {
+    "reply": [
+      "¿Confirmas cancelar tu cita?",
+      "1) Sí, cancelar",
+      "2) No, volver",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "1": "cancelar_ok",
+      "2": "reagendar_menu"
+    }
+  },
+
+  "cancelar_ok": {
+    "reply": [
+      "❎ Tu cita ha sido cancelada.",
+      "Si deseas, puedes agendar otra en cualquier momento.",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "9": "menu_principal",
+      "0": "menu_principal"
+    }
+  },
+
+  "consultar_intro": {
+    "reply": [
+      "Para consultar tu cita, escribe tu cédula/pasaporte.",
+      "Te devolveré fecha, hora, sede y recomendaciones.",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": { "continuar": "consultar_ok" }
+  },
+
+  "consultar_ok": {
+    "reply": [
+      "Aquí tienes tu cita:",
+      "• Fecha: {FECHA}",
+      "• Hora: {HORA}",
+      "• Sede: {SEDE}",
+      "¿Necesitas algo más?",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "9": "menu_principal",
+      "0": "menu_principal"
+    }
+  },
+
+  "hablar_intro": {
+    "reply": [
+      "Te conecto con el Dr./Asesor 👩‍⚕️👨‍⚕️.",
+      "Si prefieres, deja tu mensaje y número y te llamamos.",
+      "(9 inicio • 0 atrás)"
+    ],
+    "routes": {
+      "9": "menu_principal",
+      "0": "menu_principal"
+    }
+  }
 }

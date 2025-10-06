@@ -1,7 +1,6 @@
 import os
 import json
 import logging
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 import httpx
@@ -129,21 +128,22 @@ async def wa_webhook(req: Request):
     current_state = (sess.get("current_state") or None)
 
     # Procesa por el motor de flujo
-    reply_text = ""
-    next_state = current_state
-
     out = engine.run(text_in, current_state)
-    if out:
-        # engine.run devuelve {"reply": [..], "next": "id"}
-        reply_text = "\n".join(out.get("reply") or [])
-        next_state = out.get("next") or current_state
-    else:
-        # fallbacks mínimos (hora/eco)
-        if text_in.lower() in ("hora", "hora?", "qué hora es", "que hora es"):
-            reply_text = f"🕒 Son las {datetime.now().strftime('%H:%M:%S')}"
-        else:
-            reply_text = f"👋 Hola! Recibí: {text_in}"
+    try:
+        log.info("FLOW OUT DEBUG: reply_len=%s next=%s",
+                 len((out or {}).get("reply") or []),
+                 (out or {}).get("next"))
+    except Exception as e:
+        log.exception("FLOW OUT DEBUG error: %s", e)
 
+    if not out or not out.get("reply") or not out.get("next"):
+        log.warning("FLOW fallback → forzando menu_principal")
+        out = engine.run("9", None)
+
+    result = out or {}
+    reply_lines = result.get("reply") or []
+    next_state = result.get("next") or "menu_principal"
+    reply_text = "\n".join(reply_lines)
     # Persiste el nuevo estado
     upsert_session(
         user_id=wa_from,
