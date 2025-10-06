@@ -1,45 +1,52 @@
+# config.py
 from __future__ import annotations
-
-from functools import lru_cache
-
+import os
 from dotenv import load_dotenv
-from pydantic_settings import BaseSettings
 
+# Cargar .env local SI existe (en Railway usará Variables del panel)
 load_dotenv()
 
+# --------- WhatsApp / Telegram (opcional) ----------
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
 
-class Settings(BaseSettings):
-    DATABASE_URL: str = "sqlite:///./dev.db"
-    GOOGLE_CALENDAR_TOKEN_JSON: str | None = None
-    TELEGRAM_TOKEN: str | None = None
-    PGUSER: str | None = None
-    PGPASSWORD: str | None = None
-    PGHOST: str | None = None
-    PGPORT: str | None = None
-    PGDATABASE: str | None = None
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_SECRET_TOKEN = os.getenv("TELEGRAM_SECRET_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "allow"  # Permite variables extra en el .env
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 
+# --------- Flujo ----------
+FLOW_JSON_PATH = os.getenv("FLOW_JSON_PATH", "flow.json")
+DURACION_CITA_MIN = int(os.getenv("DURACION_CITA_MIN", "45"))  # <— sin tildes, sin espacios
 
-@lru_cache
-def get_settings() -> Settings:
-    settings = Settings()
+# --------- Base de datos ----------
+# Opción A: usar DATABASE_URL directamente
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
-    if (
-        settings.DATABASE_URL.startswith("sqlite")
-        and settings.PGUSER
-        and settings.PGPASSWORD
-        and settings.PGHOST
-        and settings.PGPORT
-    ):
-        database = settings.PGDATABASE or "postgres"
-        pg_url = (
-            f"postgresql://{settings.PGUSER}:{settings.PGPASSWORD}"
-            f"@{settings.PGHOST}:{settings.PGPORT}/{database}"
-        )
-        object.__setattr__(settings, "DATABASE_URL", pg_url)
+# Opción B: construir desde PG* si están presentes
+PGUSER = os.getenv("PGUSER")
+PGPASSWORD = os.getenv("PGPASSWORD")
+PGHOST = os.getenv("PGHOST")
+PGPORT = os.getenv("PGPORT")
+PGDATABASE = os.getenv("PGDATABASE")
 
-    return settings
+if all([PGUSER, PGPASSWORD, PGHOST, PGPORT, PGDATABASE]):
+    DATABASE_URL = f"postgresql://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}"
+
+# Seguridad básica: evitar prints de secretos
+def redact(value: str) -> str:
+    if not value:
+        return ""
+    return value[:4] + "..." if len(value) > 7 else "***"
+
+def config_debug_snapshot() -> str:
+    return (
+        f"CFG: FLOW_JSON_PATH={FLOW_JSON_PATH} | "
+        f"DURACION_CITA_MIN={DURACION_CITA_MIN} | "
+        f"WHATSAPP_TOKEN={'OK' if WHATSAPP_TOKEN else 'MISSING'} | "
+        f"PHONE_ID={'OK' if WHATSAPP_PHONE_NUMBER_ID else 'MISSING'} | "
+        f"VERIFY_TOKEN={'OK' if WHATSAPP_VERIFY_TOKEN else 'MISSING'} | "
+        f"DATABASE_URL={'OK' if DATABASE_URL else 'MISSING'}"
+    )
