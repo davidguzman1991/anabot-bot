@@ -1,343 +1,543 @@
 {
-  "menu_principal": {
-    "reply": [
-      "👋 ¡Hola! Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?",
-      "Responde con el número correspondiente a las siguientes opciones:",
-      "1. Más información de servicios médicos",
-      "2. Agendar cita médica",
-      "3. Reagendar o cancelar",
-      "4. Consultar cita médica",
-      "5. Solicitar hablar con el Dr. Guzmán",
-      "(9 para inicio • 0 para atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "servicios", "label": "Más información de servicios médicos"},
-      {"key": "2", "next": "agendar_intro", "label": "Agendar cita médica"},
-      {"key": "3", "next": "reagendar_intro", "label": "Reagendar o cancelar"},
-      {"key": "4", "next": "consultar_intro", "label": "Consultar cita médica"},
-      {"key": "5", "next": "hablar_intro", "label": "Solicitar hablar con el Dr. Guzmán"},
-      {"key": "9", "next": "menu_principal", "label": "Inicio"},
-      {"key": "0", "next": "menu_principal", "label": "Atrás"}
-    ]
-  },
-
-  "servicios": {
-    "reply": [
-      "💙 *Servicios disponibles*:",
-      "• Consulta médica especializada en Diabetes — incluye ECG, plan nutricional y educación.",
-      "• Consulta de Neuropatía Diabética.",
-      "• Valoración de dolor crónico y riesgo cardio-renal.",
-      "💰 *Valor de la consulta:* $45.",
-      "",
-      "Sedes disponibles:",
-      "1) Dirección Guayaquil",
-      "2) Dirección Milagro",
-      "",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "direccion_gye", "label": "Dirección Guayaquil"},
-      {"key": "2", "next": "direccion_milagro", "label": "Dirección Milagro"},
-      {"key": "9", "next": "menu_principal", "label": "Inicio"},
-      {"key": "0", "next": "menu_principal", "label": "Atrás"}
-    ]
-  },
-
-  "direccion_gye": {
-    "reply": [
-      "🏥 *Dirección Guayaquil*:",
-      "Hospital de Especialidades (Torre Sur), Consultorio 204 (antigua Clínica Kennedy Alborada).",
-      "📍 Dirección GPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7",
-      "",
-      "1) Agendar Cita Médica",
-      "",
-      "0) Atrás",
-      "9) Inicio"
-    ],
-    "routes": [
-      {"key": "1", "next": "agendar_intro", "label": "Agendar Cita Médica"},
-      {"key": "0", "next": "servicios", "label": "Atrás"},
-      {"key": "9", "next": "menu_principal", "label": "Inicio"}
-    ]
-  },
-
-  "direccion_milagro": {
-    "reply": [
-      "🏥 *Dirección Milagro*:",
-      "Clínica Santa Elena, Av. Cristóbal Colón y calle P.J. Montero.",
-      "📍 Dirección GPS: https://maps.app.goo.gl/7hh97D7JDcznqRSK9",
-      "",
-      "1) Agendar Cita Médica",
-      "",
-      "0) Atrás",
-      "9) Inicio"
-    ],
-    "routes": [
-      {"key": "1", "next": "agendar_intro", "label": "Agendar Cita Médica"},
-      {"key": "0", "next": "servicios", "label": "Atrás"},
-      {"key": "9", "next": "menu_principal", "label": "Inicio"}
-    ]
-  },
-
-  "agendar_intro": {
-    "reply": [
-      "Perfecto, vamos a agendar tu cita. Te pediré algunos datos.",
-      "Primero, ingresa tu número de cédula o pasaporte (10 dígitos o texto si es pasaporte).",
-      "Ejemplo (cédula): 0912345678 • (pasaporte): P-ABC123",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "continuar", "next": "agendar_esperando_dni", "label": "Continuar"}
-    ]
-  },
-
-  "agendar_esperando_dni": {
-    "reply": [
-      "✅ Recibido. Ahora escribe tu nombre y dos apellidos.",
-      "Ejemplo: Maria Lopez Garcia",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "continuar", "next": "agendar_esperando_nombre", "label": "Continuar"}
-    ]
-  },
-
-  "agendar_esperando_nombre": {
-    "reply": [
-      "Gracias. Indica tu fecha de nacimiento en formato DD-MM-AAAA.",
-      "Ejemplo: 20-06-1991",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "continuar", "next": "agendar_esperando_fnac", "label": "Continuar"}
-    ]
-  },
-
-  "agendar_esperando_fnac": {
-    "reply": [
-      "Ahora tu número de contacto (celular/WhatsApp).",
-      "Ejemplo: 09xxxxxxxx",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "continuar", "next": "agendar_esperando_telefono", "label": "Continuar"}
-    ]
-  },
-
-  "agendar_esperando_telefono": {
-    "reply": [
-      "Tu correo electrónico. Si no tienes, escribe: ninguno",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "continuar", "next": "agendar_esperando_email", "label": "Continuar"}
-    ]
-  },
-
-  "agendar_esperando_email": {
-    "reply": [
-      "Indica el día que deseas ser atendido. Marca una opción:",
-      "1) Hoy",
-      "2) Mañana",
-      "3) Esta semana",
-      "4) Otra fecha",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "agendar_sede", "label": "Hoy"},
-      {"key": "2", "next": "agendar_sede", "label": "Mañana"},
-      {"key": "3", "next": "agendar_sede", "label": "Esta semana"},
-      {"key": "4", "next": "agendar_sede", "label": "Otra fecha"}
-    ]
-  },
-
-  "agendar_sede": {
-    "reply": [
-      "Selecciona la sede:",
-      "1) Guayaquil",
-      "2) Milagro",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "agendar_hora", "label": "Guayaquil"},
-      {"key": "2", "next": "agendar_hora", "label": "Milagro"}
-    ]
-  },
-
-  "agendar_hora": {
-    "reply": [
-      "Selecciona un rango de hora disponible:",
-      "1) Mañana",
-      "2) Tarde",
-      "3) Noche",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "agendar_confirmar", "label": "Mañana"},
-      {"key": "2", "next": "agendar_confirmar", "label": "Tarde"},
-      {"key": "3", "next": "agendar_confirmar", "label": "Noche"}
-    ]
-  },
-
-  "agendar_confirmar": {
-    "reply": [
-      "Confirma tu cita:",
-      "1) Confirmar",
-      "2) Cambiar datos",
-      "3) Cancelar agendamiento",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "agendar_ok", "label": "Confirmar"},
-      {"key": "2", "next": "agendar_intro", "label": "Cambiar datos"},
-      {"key": "3", "next": "menu_principal", "label": "Cancelar agendamiento"}
-    ]
-  },
-
-  "agendar_ok": {
-    "reply": [
-      "✅ ¡Listo! Tu cita ha sido registrada.",
-      "Recibirás un mensaje de confirmación con el detalle.",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "9", "next": "menu_principal", "label": "Inicio"},
-      {"key": "0", "next": "menu_principal", "label": "Atrás"}
-    ]
-  },
-
-  "reagendar_intro": {
-    "reply": [
-      "Para reagendar o cancelar tu cita necesito verificarte.",
-      "Escribe tu cédula/pasaporte.",
-      "(Luego podrás elegir cambiar fecha/hora o anular la cita.)",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "continuar", "next": "reagendar_menu", "label": "Continuar"}
-    ]
-  },
-
-  "reagendar_menu": {
-    "reply": [
-      "¿Qué deseas hacer?",
-      "1) Reagendar (cambiar fecha/hora)",
-      "2) Cancelar cita",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "reagendar_captura", "label": "Reagendar (cambiar fecha/hora)"},
-      {"key": "2", "next": "cancelar_captura", "label": "Cancelar cita"}
-    ]
-  },
-
-  "reagendar_captura": {
-    "reply": [
-      "Indica nueva preferencia de día:",
-      "1) Mañana",
-      "2) Esta semana",
-      "3) Otra fecha",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "reagendar_hora", "label": "Mañana"},
-      {"key": "2", "next": "reagendar_hora", "label": "Esta semana"},
-      {"key": "3", "next": "reagendar_hora", "label": "Otra fecha"}
-    ]
-  },
-
-  "reagendar_hora": {
-    "reply": [
-      "Elige rango de hora:",
-      "1) Mañana",
-      "2) Tarde",
-      "3) Noche",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "reagendar_ok", "label": "Mañana"},
-      {"key": "2", "next": "reagendar_ok", "label": "Tarde"},
-      {"key": "3", "next": "reagendar_ok", "label": "Noche"}
-    ]
-  },
-
-  "reagendar_ok": {
-    "reply": [
-      "✅ Cita reagendada correctamente.",
-      "Te enviaremos la nueva confirmación.",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "9", "next": "menu_principal", "label": "Inicio"},
-      {"key": "0", "next": "menu_principal", "label": "Atrás"}
-    ]
-  },
-
-  "cancelar_captura": {
-    "reply": [
-      "¿Confirmas cancelar tu cita?",
-      "1) Sí, cancelar",
-      "2) No, volver",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "1", "next": "cancelar_ok", "label": "Sí, cancelar"},
-      {"key": "2", "next": "reagendar_menu", "label": "No, volver"}
-    ]
-  },
-
-  "cancelar_ok": {
-    "reply": [
-      "❎ Tu cita ha sido cancelada.",
-      "Si deseas, puedes agendar otra en cualquier momento.",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "9", "next": "menu_principal", "label": "Inicio"},
-      {"key": "0", "next": "menu_principal", "label": "Atrás"}
-    ]
-  },
-
-  "consultar_intro": {
-    "reply": [
-      "Para consultar tu cita, escribe tu cédula/pasaporte.",
-      "Te devolveré fecha, hora, sede y recomendaciones.",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "continuar", "next": "consultar_ok", "label": "Continuar"}
-    ]
-  },
-
-  "consultar_ok": {
-    "reply": [
-      "Aquí tienes tu cita:",
-      "• Fecha: {FECHA}",
-      "• Hora: {HORA}",
-      "• Sede: {SEDE}",
-      "¿Necesitas algo más?",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "9", "next": "menu_principal", "label": "Inicio"},
-      {"key": "0", "next": "menu_principal", "label": "Atrás"}
-    ]
-  },
-
-  "hablar_intro": {
-    "reply": [
-      "Te conecto con el Dr./Asesor 👩‍⚕️👨‍⚕️.",
-      "Si prefieres, deja tu mensaje y número y te llamamos.",
-      "(9 inicio • 0 atrás)"
-    ],
-    "routes": [
-      {"key": "9", "next": "menu_principal", "label": "Inicio"},
-      {"key": "0", "next": "menu_principal", "label": "Atrás"}
-    ]
+  "version": "1.0",
+  "start_state": "menu_principal",
+  "states": {
+    "menu_principal": {
+      "reply": [
+        "👋 ¡Hola! Soy Ana, asistente virtual del Dr. David Guzmán. ¿Cómo te ayudo hoy?",
+        "Responde con el número correspondiente a las siguientes opciones:",
+        "1. Más información de servicios médicos",
+        "2. Agendar cita médica",
+        "3. Reagendar o cancelar",
+        "4. Consultar cita médica",
+        "5. Solicitar hablar con el Dr. Guzmán",
+        "(9 para inicio • 0 para atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "servicios",
+          "label": "Más información de servicios médicos"
+        },
+        {
+          "key": "2",
+          "next": "agendar_intro",
+          "label": "Agendar cita médica"
+        },
+        {
+          "key": "3",
+          "next": "reagendar_intro",
+          "label": "Reagendar o cancelar"
+        },
+        {
+          "key": "4",
+          "next": "consultar_intro",
+          "label": "Consultar cita médica"
+        },
+        {
+          "key": "5",
+          "next": "hablar_intro",
+          "label": "Solicitar hablar con el Dr. Guzmán"
+        },
+        {
+          "key": "9",
+          "next": "menu_principal",
+          "label": "Inicio"
+        },
+        {
+          "key": "0",
+          "next": "menu_principal",
+          "label": "Atrás"
+        }
+      ]
+    },
+    "servicios": {
+      "reply": [
+        "💙 *Servicios disponibles*:",
+        "• Consulta médica especializada en Diabetes — incluye ECG, plan nutricional y educación.",
+        "• Consulta de Neuropatía Diabética.",
+        "• Valoración de dolor crónico y riesgo cardio-renal.",
+        "💰 *Valor de la consulta:* $45.",
+        "",
+        "Sedes disponibles:",
+        "1) Dirección Guayaquil",
+        "2) Dirección Milagro",
+        "",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "direccion_gye",
+          "label": "Dirección Guayaquil"
+        },
+        {
+          "key": "2",
+          "next": "direccion_milagro",
+          "label": "Dirección Milagro"
+        },
+        {
+          "key": "9",
+          "next": "menu_principal",
+          "label": "Inicio"
+        },
+        {
+          "key": "0",
+          "next": "menu_principal",
+          "label": "Atrás"
+        }
+      ]
+    },
+    "direccion_gye": {
+      "reply": [
+        "🏥 *Dirección Guayaquil*:",
+        "Hospital de Especialidades (Torre Sur), Consultorio 204 (antigua Clínica Kennedy Alborada).",
+        "📍 Dirección GPS: https://maps.app.goo.gl/7J8v9V9RJHfxADfz7",
+        "",
+        "1) Agendar Cita Médica",
+        "",
+        "0) Atrás",
+        "9) Inicio"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "agendar_intro",
+          "label": "Agendar Cita Médica"
+        },
+        {
+          "key": "0",
+          "next": "servicios",
+          "label": "Atrás"
+        },
+        {
+          "key": "9",
+          "next": "menu_principal",
+          "label": "Inicio"
+        }
+      ]
+    },
+    "direccion_milagro": {
+      "reply": [
+        "🏥 *Dirección Milagro*:",
+        "Clínica Santa Elena, Av. Cristóbal Colón y calle P.J. Montero.",
+        "📍 Dirección GPS: https://maps.app.goo.gl/7hh97D7JDcznqRSK9",
+        "",
+        "1) Agendar Cita Médica",
+        "",
+        "0) Atrás",
+        "9) Inicio"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "agendar_intro",
+          "label": "Agendar Cita Médica"
+        },
+        {
+          "key": "0",
+          "next": "servicios",
+          "label": "Atrás"
+        },
+        {
+          "key": "9",
+          "next": "menu_principal",
+          "label": "Inicio"
+        }
+      ]
+    },
+    "agendar_intro": {
+      "reply": [
+        "Perfecto, vamos a agendar tu cita. Te pediré algunos datos.",
+        "Primero, ingresa tu número de cédula o pasaporte (10 dígitos o texto si es pasaporte).",
+        "Ejemplo (cédula): 0912345678 • (pasaporte): P-ABC123",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "continuar",
+          "next": "agendar_esperando_dni",
+          "label": "Continuar"
+        }
+      ]
+    },
+    "agendar_esperando_dni": {
+      "reply": [
+        "✅ Recibido. Ahora escribe tu nombre y dos apellidos.",
+        "Ejemplo: Maria Lopez Garcia",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "continuar",
+          "next": "agendar_esperando_nombre",
+          "label": "Continuar"
+        }
+      ]
+    },
+    "agendar_esperando_nombre": {
+      "reply": [
+        "Gracias. Indica tu fecha de nacimiento en formato DD-MM-AAAA.",
+        "Ejemplo: 20-06-1991",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "continuar",
+          "next": "agendar_esperando_fnac",
+          "label": "Continuar"
+        }
+      ]
+    },
+    "agendar_esperando_fnac": {
+      "reply": [
+        "Ahora tu número de contacto (celular/WhatsApp).",
+        "Ejemplo: 09xxxxxxxx",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "continuar",
+          "next": "agendar_esperando_telefono",
+          "label": "Continuar"
+        }
+      ]
+    },
+    "agendar_esperando_telefono": {
+      "reply": [
+        "Tu correo electrónico. Si no tienes, escribe: ninguno",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "continuar",
+          "next": "agendar_esperando_email",
+          "label": "Continuar"
+        }
+      ]
+    },
+    "agendar_esperando_email": {
+      "reply": [
+        "Indica el día que deseas ser atendido. Marca una opción:",
+        "1) Hoy",
+        "2) Mañana",
+        "3) Esta semana",
+        "4) Otra fecha",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "agendar_sede",
+          "label": "Hoy"
+        },
+        {
+          "key": "2",
+          "next": "agendar_sede",
+          "label": "Mañana"
+        },
+        {
+          "key": "3",
+          "next": "agendar_sede",
+          "label": "Esta semana"
+        },
+        {
+          "key": "4",
+          "next": "agendar_sede",
+          "label": "Otra fecha"
+        }
+      ]
+    },
+    "agendar_sede": {
+      "reply": [
+        "Selecciona la sede:",
+        "1) Guayaquil",
+        "2) Milagro",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "agendar_hora",
+          "label": "Guayaquil"
+        },
+        {
+          "key": "2",
+          "next": "agendar_hora",
+          "label": "Milagro"
+        }
+      ]
+    },
+    "agendar_hora": {
+      "reply": [
+        "Selecciona un rango de hora disponible:",
+        "1) Mañana",
+        "2) Tarde",
+        "3) Noche",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "agendar_confirmar",
+          "label": "Mañana"
+        },
+        {
+          "key": "2",
+          "next": "agendar_confirmar",
+          "label": "Tarde"
+        },
+        {
+          "key": "3",
+          "next": "agendar_confirmar",
+          "label": "Noche"
+        }
+      ]
+    },
+    "agendar_confirmar": {
+      "reply": [
+        "Confirma tu cita:",
+        "1) Confirmar",
+        "2) Cambiar datos",
+        "3) Cancelar agendamiento",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "agendar_ok",
+          "label": "Confirmar"
+        },
+        {
+          "key": "2",
+          "next": "agendar_intro",
+          "label": "Cambiar datos"
+        },
+        {
+          "key": "3",
+          "next": "menu_principal",
+          "label": "Cancelar agendamiento"
+        }
+      ]
+    },
+    "agendar_ok": {
+      "reply": [
+        "✅ ¡Listo! Tu cita ha sido registrada.",
+        "Recibirás un mensaje de confirmación con el detalle.",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "9",
+          "next": "menu_principal",
+          "label": "Inicio"
+        },
+        {
+          "key": "0",
+          "next": "menu_principal",
+          "label": "Atrás"
+        }
+      ]
+    },
+    "reagendar_intro": {
+      "reply": [
+        "Para reagendar o cancelar tu cita necesito verificarte.",
+        "Escribe tu cédula/pasaporte.",
+        "(Luego podrás elegir cambiar fecha/hora o anular la cita.)",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "continuar",
+          "next": "reagendar_menu",
+          "label": "Continuar"
+        }
+      ]
+    },
+    "reagendar_menu": {
+      "reply": [
+        "¿Qué deseas hacer?",
+        "1) Reagendar (cambiar fecha/hora)",
+        "2) Cancelar cita",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "reagendar_captura",
+          "label": "Reagendar (cambiar fecha/hora)"
+        },
+        {
+          "key": "2",
+          "next": "cancelar_captura",
+          "label": "Cancelar cita"
+        }
+      ]
+    },
+    "reagendar_captura": {
+      "reply": [
+        "Indica nueva preferencia de día:",
+        "1) Mañana",
+        "2) Esta semana",
+        "3) Otra fecha",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "reagendar_hora",
+          "label": "Mañana"
+        },
+        {
+          "key": "2",
+          "next": "reagendar_hora",
+          "label": "Esta semana"
+        },
+        {
+          "key": "3",
+          "next": "reagendar_hora",
+          "label": "Otra fecha"
+        }
+      ]
+    },
+    "reagendar_hora": {
+      "reply": [
+        "Elige rango de hora:",
+        "1) Mañana",
+        "2) Tarde",
+        "3) Noche",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "reagendar_ok",
+          "label": "Mañana"
+        },
+        {
+          "key": "2",
+          "next": "reagendar_ok",
+          "label": "Tarde"
+        },
+        {
+          "key": "3",
+          "next": "reagendar_ok",
+          "label": "Noche"
+        }
+      ]
+    },
+    "reagendar_ok": {
+      "reply": [
+        "✅ Cita reagendada correctamente.",
+        "Te enviaremos la nueva confirmación.",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "9",
+          "next": "menu_principal",
+          "label": "Inicio"
+        },
+        {
+          "key": "0",
+          "next": "menu_principal",
+          "label": "Atrás"
+        }
+      ]
+    },
+    "cancelar_captura": {
+      "reply": [
+        "¿Confirmas cancelar tu cita?",
+        "1) Sí, cancelar",
+        "2) No, volver",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "1",
+          "next": "cancelar_ok",
+          "label": "Sí, cancelar"
+        },
+        {
+          "key": "2",
+          "next": "reagendar_menu",
+          "label": "No, volver"
+        }
+      ]
+    },
+    "cancelar_ok": {
+      "reply": [
+        "❎ Tu cita ha sido cancelada.",
+        "Si deseas, puedes agendar otra en cualquier momento.",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "9",
+          "next": "menu_principal",
+          "label": "Inicio"
+        },
+        {
+          "key": "0",
+          "next": "menu_principal",
+          "label": "Atrás"
+        }
+      ]
+    },
+    "consultar_intro": {
+      "reply": [
+        "Para consultar tu cita, escribe tu cédula/pasaporte.",
+        "Te devolveré fecha, hora, sede y recomendaciones.",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "continuar",
+          "next": "consultar_ok",
+          "label": "Continuar"
+        }
+      ]
+    },
+    "consultar_ok": {
+      "reply": [
+        "Aquí tienes tu cita:",
+        "• Fecha: {FECHA}",
+        "• Hora: {HORA}",
+        "• Sede: {SEDE}",
+        "¿Necesitas algo más?",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "9",
+          "next": "menu_principal",
+          "label": "Inicio"
+        },
+        {
+          "key": "0",
+          "next": "menu_principal",
+          "label": "Atrás"
+        }
+      ]
+    },
+    "hablar_intro": {
+      "reply": [
+        "Te conecto con el Dr./Asesor 👩‍⚕️👨‍⚕️.",
+        "Si prefieres, deja tu mensaje y número y te llamamos.",
+        "(9 inicio • 0 atrás)"
+      ],
+      "routes": [
+        {
+          "key": "9",
+          "next": "menu_principal",
+          "label": "Inicio"
+        },
+        {
+          "key": "0",
+          "next": "menu_principal",
+          "label": "Atrás"
+        }
+      ]
+    }
   }
 }
-
-
-
-
->>>>>>> fix/railway-python-builder
