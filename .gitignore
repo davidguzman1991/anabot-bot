@@ -1,20 +1,4 @@
-# Evitar subir archivos sensibles y temporales
-.env
-.env.*
-!.env.example
 __pycache__/
 *.pyc
-*.pyo
-.vscode/
-.idea/
-.DS_Store
-*.sqlite3
-*.db
-*.log
-venv/
+.env
 .venv/
-credentials.json
-token.json
-*token*.json
-_tmp/
-chatbot_ana_base_conocimiento.csv

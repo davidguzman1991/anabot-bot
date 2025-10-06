@@ -1,18 +1,14 @@
 # flow_engine.py
-# ------------------------------------------------------------------------------
-# FlowEngine para AnaBot — contrato compatible con main.py y hooks.py
-# - Carga y normaliza flow.json
-# - Expone .run(text, current_id) → {"reply":[...], "next":"..."}
-# - Mantiene un ruteo simple por opción (1..5), intents y atajos 0 / 9
-# - No realiza I/O ni persiste estado (eso lo hace session_store/hooks)
-# ------------------------------------------------------------------------------
-
+def _normalize_text(s: str) -> str:
 from __future__ import annotations
 
 import json
 import os
 import re
+import logging
 from typing import Any, Dict, List, Optional
+
+log = logging.getLogger("anabot.flow")
 
 # ------------------------------- Utilidades -----------------------------------
 
@@ -27,6 +23,70 @@ def _normalize_text(s: str) -> str:
 
 # ------------------------------- Intenciones ----------------------------------
 
+INTENTS = {
+    "servicios": {
+        "keys": ["s", "se", "servicio", "servicios", "precio", "valor", "costo", "duracion",
+                 "ecg", "electro", "nutricion", "plan", "neuropatia", "pie diabetico",
+                 "guayaquil", "milagro", "direccion", "ubicacion", "mapa"]
+    },
+    "agendar":   {
+        "keys": ["a", "ag", "agendar", "agenda", "cita", "sacar cita", "sacar turno", "turno",
+                 "reservar", "reserva", "hacer cita", "programar", "pedir cita",
+                 "asendar", "ajendar", "ajendarme"]
+    },
+    "reagendar": {
+        "keys": ["r", "rg", "reagendar", "cambiar hora", "mover cita", "posponer",
+                 "reprogramar", "modificar cita"]
+    },
+    "cancelar":  {
+        "keys": ["cancelar", "anular", "borrar cita", "ya no", "no puedo ir", "suspender"]
+    },
+    "consultar": {
+        "keys": ["c", "cc", "consultar", "ver cita", "tengo cita", "confirmar hora",
+                 "a que hora es", "cuando es mi cita", "detalles de mi cita", "donde es mi cita"]
+    },
+    "hablar":    {
+        "keys": ["h", "dr", "hablar con doctor", "hablar con el dr", "hablar con guzman",
+                 "medico", "humano", "asesor", "whatsapp del doctor", "numero del dr",
+                 "comunicarme con el doctor", "llamar al medico", "mensaje para el doctor"]
+    },
+def _infer_intent(text: str) -> Optional[str]:
+
+    "inicio":    {"keys": ["9", "i", "in", "inicio", "menu", "comenzar", "empezar", "home"]},
+    "atras":     {"keys": ["0", "b", "atr", "atras", "volver", "regresar", "retroceder"]},
+}
+
+def _infer_intent(text: str) -> Optional[str]:
+    t = _normalize_text(text)
+    # Numérico directo
+    if re.fullmatch(r"[1-5]", t):
+        return t
+    # Atajos globales
+    if t in INTENTS["inicio"]["keys"]:
+        return "9"
+    if t in INTENTS["atras"]["keys"]:
+        return "0"
+    # Palabras clave
+    for intent, cfg in INTENTS.items():
+        if intent in ("inicio", "atras"):
+            continue
+        for k in cfg["keys"]:
+            if k in t:
+                return intent
+    return None
+
+
+# ------------------------------- Utilidades -----------------------------------
+def _normalize_text(s: str) -> str:
+    s = (s or "").strip().lower()
+    # Quitar tildes simples
+    rep = (("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u"))
+    for a, b in rep:
+        s = s.replace(a, b)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+# ------------------------------- Intenciones ----------------------------------
 INTENTS = {
     "servicios": {
         "keys": ["s", "se", "servicio", "servicios", "precio", "valor", "costo", "duracion",
@@ -148,15 +208,24 @@ class FlowEngine:
             }
 
         self.nodes = norm_nodes
-        # Asegurar que exista el nodo de inicio
+
+        default_menu = {
+            "id": "menu_principal",
+            "reply": ["Bienvenido. (configura 'menu_principal' en flow.json)"],
+            "routes": {"9": "menu_principal", "0": "menu_principal"},
+        }
+
+        if "menu_principal" not in self.nodes:
+            log.warning("FLOW sin 'menu_principal': se inyecta nodo de inicio por defecto")
+            self.nodes["menu_principal"] = dict(default_menu)
+
         if self.start not in self.nodes:
             self.start = "menu_principal"
-            self.nodes.setdefault(self.start, {
-                "id": self.start,
-                "reply": ["Bienvenido. (configura 'menu_principal' en flow.json)"],
-                "routes": {"9": "menu_principal", "0": "menu_principal"},
-            })
 
+        self.nodes.setdefault("menu_principal", dict(default_menu))
+
+        log.info("FLOW PATH=%s", self.flow_path)
+        log.info("FLOW NODES=%d START=%s", len(self.nodes), self.start)
     # ------------------------------- Ejecución --------------------------------
 
     def run(self, text: str, current_id: Optional[str]) -> Dict[str, Any]:
@@ -220,4 +289,3 @@ class FlowEngine:
 
         # 3) Fallback: repetir el nodo actual (útil para “elige una opción 1–5”)
         return {"reply": node["reply"], "next": node["id"]}
-

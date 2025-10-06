@@ -10,13 +10,15 @@
       "5. Solicitar hablar con el Dr. Guzmán",
       "(9 para inicio • 0 para atrás)"
     ],
-    "routes": {
-      "1": "servicios",
-      "2": "agendar_intro",
-      "3": "reagendar_intro",
-      "4": "consultar_intro",
-      "5": "hablar_intro"
-    }
+    "routes": [
+      {"key": "1", "next": "servicios", "label": "Más información de servicios médicos"},
+      {"key": "2", "next": "agendar_intro", "label": "Agendar cita médica"},
+      {"key": "3", "next": "reagendar_intro", "label": "Reagendar o cancelar"},
+      {"key": "4", "next": "consultar_intro", "label": "Consultar cita médica"},
+      {"key": "5", "next": "hablar_intro", "label": "Solicitar hablar con el Dr. Guzmán"},
+      {"key": "9", "next": "menu_principal", "label": "Inicio"},
+      {"key": "0", "next": "menu_principal", "label": "Atrás"}
+    ]
   },
 
   "servicios": {
@@ -33,12 +35,12 @@
       "",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "1": "direccion_gye",
-      "2": "direccion_milagro",
-      "9": "menu_principal",
-      "0": "menu_principal"
-    }
+    "routes": [
+      {"key": "1", "next": "direccion_gye", "label": "Dirección Guayaquil"},
+      {"key": "2", "next": "direccion_milagro", "label": "Dirección Milagro"},
+      {"key": "9", "next": "menu_principal", "label": "Inicio"},
+      {"key": "0", "next": "menu_principal", "label": "Atrás"}
+    ]
   },
 
   "direccion_gye": {
@@ -52,11 +54,11 @@
       "0) Atrás",
       "9) Inicio"
     ],
-    "routes": {
-      "1": "agendar_intro",
-      "0": "servicios",
-      "9": "menu_principal"
-    }
+    "routes": [
+      {"key": "1", "next": "agendar_intro", "label": "Agendar Cita Médica"},
+      {"key": "0", "next": "servicios", "label": "Atrás"},
+      {"key": "9", "next": "menu_principal", "label": "Inicio"}
+    ]
   },
 
   "direccion_milagro": {
@@ -70,11 +72,11 @@
       "0) Atrás",
       "9) Inicio"
     ],
-    "routes": {
-      "1": "agendar_intro",
-      "0": "servicios",
-      "9": "menu_principal"
-    }
+    "routes": [
+      {"key": "1", "next": "agendar_intro", "label": "Agendar Cita Médica"},
+      {"key": "0", "next": "servicios", "label": "Atrás"},
+      {"key": "9", "next": "menu_principal", "label": "Inicio"}
+    ]
   },
 
   "agendar_intro": {
@@ -84,7 +86,9 @@
       "Ejemplo (cédula): 0912345678 • (pasaporte): P-ABC123",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": { "continuar": "agendar_esperando_dni" }
+    "routes": [
+      {"key": "continuar", "next": "agendar_esperando_dni", "label": "Continuar"}
+    ]
   },
 
   "agendar_esperando_dni": {
@@ -93,7 +97,9 @@
       "Ejemplo: Maria Lopez Garcia",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": { "continuar": "agendar_esperando_nombre" }
+    "routes": [
+      {"key": "continuar", "next": "agendar_esperando_nombre", "label": "Continuar"}
+    ]
   },
 
   "agendar_esperando_nombre": {
@@ -102,7 +108,9 @@
       "Ejemplo: 20-06-1991",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": { "continuar": "agendar_esperando_fnac" }
+    "routes": [
+      {"key": "continuar", "next": "agendar_esperando_fnac", "label": "Continuar"}
+    ]
   },
 
   "agendar_esperando_fnac": {
@@ -111,7 +119,9 @@
       "Ejemplo: 09xxxxxxxx",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": { "continuar": "agendar_esperando_telefono" }
+    "routes": [
+      {"key": "continuar", "next": "agendar_esperando_telefono", "label": "Continuar"}
+    ]
   },
 
   "agendar_esperando_telefono": {
@@ -119,7 +129,9 @@
       "Tu correo electrónico. Si no tienes, escribe: ninguno",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": { "continuar": "agendar_esperando_email" }
+    "routes": [
+      {"key": "continuar", "next": "agendar_esperando_email", "label": "Continuar"}
+    ]
   },
 
   "agendar_esperando_email": {
@@ -131,12 +143,12 @@
       "4) Otra fecha",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "1": "agendar_sede",
-      "2": "agendar_sede",
-      "3": "agendar_sede",
-      "4": "agendar_sede"
-    }
+    "routes": [
+      {"key": "1", "next": "agendar_sede", "label": "Hoy"},
+      {"key": "2", "next": "agendar_sede", "label": "Mañana"},
+      {"key": "3", "next": "agendar_sede", "label": "Esta semana"},
+      {"key": "4", "next": "agendar_sede", "label": "Otra fecha"}
+    ]
   },
 
   "agendar_sede": {
@@ -146,10 +158,10 @@
       "2) Milagro",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "1": "agendar_hora",
-      "2": "agendar_hora"
-    }
+    "routes": [
+      {"key": "1", "next": "agendar_hora", "label": "Guayaquil"},
+      {"key": "2", "next": "agendar_hora", "label": "Milagro"}
+    ]
   },
 
   "agendar_hora": {
@@ -160,11 +172,11 @@
       "3) Noche",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "1": "agendar_confirmar",
-      "2": "agendar_confirmar",
-      "3": "agendar_confirmar"
-    }
+    "routes": [
+      {"key": "1", "next": "agendar_confirmar", "label": "Mañana"},
+      {"key": "2", "next": "agendar_confirmar", "label": "Tarde"},
+      {"key": "3", "next": "agendar_confirmar", "label": "Noche"}
+    ]
   },
 
   "agendar_confirmar": {
@@ -175,11 +187,11 @@
       "3) Cancelar agendamiento",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "1": "agendar_ok",
-      "2": "agendar_intro",
-      "3": "menu_principal"
-    }
+    "routes": [
+      {"key": "1", "next": "agendar_ok", "label": "Confirmar"},
+      {"key": "2", "next": "agendar_intro", "label": "Cambiar datos"},
+      {"key": "3", "next": "menu_principal", "label": "Cancelar agendamiento"}
+    ]
   },
 
   "agendar_ok": {
@@ -188,10 +200,10 @@
       "Recibirás un mensaje de confirmación con el detalle.",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "9": "menu_principal",
-      "0": "menu_principal"
-    }
+    "routes": [
+      {"key": "9", "next": "menu_principal", "label": "Inicio"},
+      {"key": "0", "next": "menu_principal", "label": "Atrás"}
+    ]
   },
 
   "reagendar_intro": {
@@ -201,7 +213,9 @@
       "(Luego podrás elegir cambiar fecha/hora o anular la cita.)",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": { "continuar": "reagendar_menu" }
+    "routes": [
+      {"key": "continuar", "next": "reagendar_menu", "label": "Continuar"}
+    ]
   },
 
   "reagendar_menu": {
@@ -211,10 +225,10 @@
       "2) Cancelar cita",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "1": "reagendar_captura",
-      "2": "cancelar_captura"
-    }
+    "routes": [
+      {"key": "1", "next": "reagendar_captura", "label": "Reagendar (cambiar fecha/hora)"},
+      {"key": "2", "next": "cancelar_captura", "label": "Cancelar cita"}
+    ]
   },
 
   "reagendar_captura": {
@@ -225,11 +239,11 @@
       "3) Otra fecha",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "1": "reagendar_hora",
-      "2": "reagendar_hora",
-      "3": "reagendar_hora"
-    }
+    "routes": [
+      {"key": "1", "next": "reagendar_hora", "label": "Mañana"},
+      {"key": "2", "next": "reagendar_hora", "label": "Esta semana"},
+      {"key": "3", "next": "reagendar_hora", "label": "Otra fecha"}
+    ]
   },
 
   "reagendar_hora": {
@@ -240,11 +254,11 @@
       "3) Noche",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "1": "reagendar_ok",
-      "2": "reagendar_ok",
-      "3": "reagendar_ok"
-    }
+    "routes": [
+      {"key": "1", "next": "reagendar_ok", "label": "Mañana"},
+      {"key": "2", "next": "reagendar_ok", "label": "Tarde"},
+      {"key": "3", "next": "reagendar_ok", "label": "Noche"}
+    ]
   },
 
   "reagendar_ok": {
@@ -253,10 +267,10 @@
       "Te enviaremos la nueva confirmación.",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "9": "menu_principal",
-      "0": "menu_principal"
-    }
+    "routes": [
+      {"key": "9", "next": "menu_principal", "label": "Inicio"},
+      {"key": "0", "next": "menu_principal", "label": "Atrás"}
+    ]
   },
 
   "cancelar_captura": {
@@ -266,10 +280,10 @@
       "2) No, volver",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "1": "cancelar_ok",
-      "2": "reagendar_menu"
-    }
+    "routes": [
+      {"key": "1", "next": "cancelar_ok", "label": "Sí, cancelar"},
+      {"key": "2", "next": "reagendar_menu", "label": "No, volver"}
+    ]
   },
 
   "cancelar_ok": {
@@ -278,10 +292,10 @@
       "Si deseas, puedes agendar otra en cualquier momento.",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "9": "menu_principal",
-      "0": "menu_principal"
-    }
+    "routes": [
+      {"key": "9", "next": "menu_principal", "label": "Inicio"},
+      {"key": "0", "next": "menu_principal", "label": "Atrás"}
+    ]
   },
 
   "consultar_intro": {
@@ -290,7 +304,9 @@
       "Te devolveré fecha, hora, sede y recomendaciones.",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": { "continuar": "consultar_ok" }
+    "routes": [
+      {"key": "continuar", "next": "consultar_ok", "label": "Continuar"}
+    ]
   },
 
   "consultar_ok": {
@@ -302,10 +318,10 @@
       "¿Necesitas algo más?",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "9": "menu_principal",
-      "0": "menu_principal"
-    }
+    "routes": [
+      {"key": "9", "next": "menu_principal", "label": "Inicio"},
+      {"key": "0", "next": "menu_principal", "label": "Atrás"}
+    ]
   },
 
   "hablar_intro": {
@@ -314,13 +330,14 @@
       "Si prefieres, deja tu mensaje y número y te llamamos.",
       "(9 inicio • 0 atrás)"
     ],
-    "routes": {
-      "9": "menu_principal",
-      "0": "menu_principal"
-    }
+    "routes": [
+      {"key": "9", "next": "menu_principal", "label": "Inicio"},
+      {"key": "0", "next": "menu_principal", "label": "Atrás"}
+    ]
   }
 }
 
 
 
 
+>>>>>>> fix/railway-python-builder
